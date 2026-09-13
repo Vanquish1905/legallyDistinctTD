@@ -121,6 +121,7 @@ public abstract class Projectile extends Entity implements HasSound {
     /**
      * This method only does something when the hitter is an Enemy.<br>
      * In that case, it damages it and adds it to the hitEnemies Map.
+     *
      * @param hitter the Entity that collided with the hitbox.
      */
     public void onHit(Entity hitter) {

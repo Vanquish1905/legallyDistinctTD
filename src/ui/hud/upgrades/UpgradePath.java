@@ -103,7 +103,7 @@ public class UpgradePath extends Actor implements Clickable {
     }
 
     public void act() {
-        if(getWorld() == null) {
+        if (getWorld() == null) {
             return;
         }
         checkClick();
@@ -217,7 +217,7 @@ public class UpgradePath extends Actor implements Clickable {
     }
 
     private void removeOverlay() {
-        if(getWorld() == null) {
+        if (getWorld() == null) {
             return;
         }
         List<UpgradeDescriptionOverlay> overlays = getWorld().getObjects(UpgradeDescriptionOverlay.class);

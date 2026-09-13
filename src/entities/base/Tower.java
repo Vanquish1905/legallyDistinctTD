@@ -139,6 +139,7 @@ public abstract class Tower extends Entity implements Clickable, Animations, Has
 
     /**
      * This method tracks the spent coins on a given upgrade-path.
+     *
      * @param path the
      */
     private void trackUpgradeCost(int path) {
@@ -566,6 +567,7 @@ public abstract class Tower extends Entity implements Clickable, Animations, Has
 
     /**
      * Spawns a projectile to shoot enemies with.
+     *
      * @param e The enemy.
      **/
     public void shoot(Enemy e) {
@@ -591,7 +593,8 @@ public abstract class Tower extends Entity implements Clickable, Animations, Has
 
     /**
      * Spawns a projectile to shoot enemies with.
-     * @param e The enemy.
+     *
+     * @param e            The enemy.
      * @param projectileId A UUID to track the projectile in multiplayer sessions
      */
     public void shoot(Enemy e, String projectileId) {
@@ -683,6 +686,7 @@ public abstract class Tower extends Entity implements Clickable, Animations, Has
     /**
      * This method is currently unused, and was used to change the image of a Tower when upgrading.<br>
      * However, our budget was cut, so we did not have the funds to create an image and animation for every upgrade.
+     *
      * @param path The path that was upgraded.
      */
     public void onUpgrade(int path) {

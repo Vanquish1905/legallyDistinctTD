@@ -76,7 +76,7 @@ public class WaveManager extends MainClass {
         "EnemyLevel6", EnemyLevel6::new
     );
 
-    
+
     // ===== Instance Variable ===== \\
     private static WaveManager INSTANCE;
 

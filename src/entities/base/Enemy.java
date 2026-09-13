@@ -45,8 +45,9 @@ public abstract class Enemy extends Entity {
 
     /**
      * Slows the enemy. This effect is applied by things like the IceTower.
+     *
      * @param slowSpeed how fast the enemy should be.
-     * @param duration how long it should be slowed for.
+     * @param duration  how long it should be slowed for.
      */
     public void applySlow(double slowSpeed, int duration) {                  //Freezetower
         if (slowTimer == 0) {
@@ -82,6 +83,7 @@ public abstract class Enemy extends Entity {
 
     /**
      * Spawns a custom oval hitbox for enemies instead of the normal square one.
+     *
      * @param hitboxWidth  width of the hitbox.
      * @param hitboxHeight height of the hitbox.
      */
@@ -127,6 +129,7 @@ public abstract class Enemy extends Entity {
 
     /**
      * Damages the enemy and makes it die in case the health reaches <= 0.
+     *
      * @param damage the amount of damage.
      */
     public void damage(double damage) {
@@ -149,6 +152,7 @@ public abstract class Enemy extends Entity {
     /**
      * Moves the enemy towards a targeted position.<br>
      * The step-size is dependent on the speed attribute.
+     *
      * @param targetX
      * @param targetY
      */
@@ -176,6 +180,7 @@ public abstract class Enemy extends Entity {
 
     /**
      * This method was used to detect whether a projectile is hitting it, but has since been moved to Projectile.java.
+     *
      * @param e the Entity that collided with the hitbox.
      */
     public void onHit(Entity e) {
