@@ -23,7 +23,15 @@ export interface BossPhaseDef {
   armor?: number;
   /** Ability that becomes active from this phase on (replaces any earlier phase ability). */
   ability?: PhaseAbilityDef;
+  /** Shown in the boss phase banner (defaults to "Phase N"). */
+  name?: string;
 }
+
+/** An ability that can run inside a `combo` (anything except phases and nested combos). */
+export type ComboPartDef = Exclude<EnemyAbilityDef, { kind: 'bossPhases' } | { kind: 'combo' }>;
+
+/** Several abilities running side by side, each with its own timer. */
+export interface ComboAbilityDef { kind: 'combo'; abilities: ComboPartDef[] }
 
 /**
  * Special enemy behaviour, discriminated on `kind`. Handlers live in `src/sim/enemyAbilities.ts`.
@@ -36,12 +44,13 @@ export type EnemyAbilityDef =
   | { kind: 'healAura'; radius: number; fraction: number; interval: number }
   /** Surfaces for `interval` s, then burrows (untargetable) for `duration` s, repeating. */
   | { kind: 'burrow'; interval: number; duration: number }
-  /** Every `interval` s, spawns `count` × `enemyId` at its own path position. */
+  /** Every `interval` s, spawns `count` × `enemyId` on its path, starting 20 px behind itself. */
   | { kind: 'spawn'; enemyId: string; count: number; interval: number }
   /** Speed multiplier ramps linearly from 1 (full HP) to `maxSpeedMul` (0 HP). */
   | { kind: 'enrage'; maxSpeedMul: number }
   /** Ordered phases (highest `hpFraction` first). */
-  | { kind: 'bossPhases'; phases: BossPhaseDef[] };
+  | { kind: 'bossPhases'; phases: BossPhaseDef[] }
+  | ComboAbilityDef;
 
 export interface EnemyDef {
   id: string; name: string; description: string;

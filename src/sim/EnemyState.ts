@@ -12,7 +12,12 @@ export interface AbilityRuntime {
   phase: number;
   /** Speed multiplier set by abilities (enrage, phases). */
   speedMul: number;
+  /** Per-part timers of a `combo` ability (filled lazily, cleared on boss phase change). */
+  timers: number[];
 }
+
+/** Visual height of flying enemies above the path (px). Flying is cosmetic: they follow the path. */
+export const FLYING_ALTITUDE = 36;
 
 /** Options for creating an enemy. */
 export interface EnemySpawnOptions {
@@ -41,6 +46,8 @@ export class EnemyState implements Circle, DamageTarget {
   readonly radius: number;
   readonly flying: boolean;
   readonly stealth: boolean;
+  /** Height above the ground for rendering (FLYING_ALTITUDE for flyers, else 0). */
+  readonly altitude: number;
   /** Base speed in px/s after difficulty scaling. */
   readonly baseSpeed: number;
   x = 0;
@@ -53,6 +60,8 @@ export class EnemyState implements Circle, DamageTarget {
   remaining = 0;
   hp: number;
   shield = 0;
+  /** Size of the last shield granted (for the renderer's shield bar). */
+  maxShield = 0;
   armor: number;
   /** Speed actually moved last tick (px/s). */
   currentSpeed = 0;
@@ -62,7 +71,7 @@ export class EnemyState implements Circle, DamageTarget {
   /** Submerged: cannot be targeted or hit. */
   burrowed = false;
   readonly status: StatusState = makeStatus();
-  readonly ability: AbilityRuntime = { timer: 0, phase: 0, speedMul: 1 };
+  readonly ability: AbilityRuntime = { timer: 0, phase: 0, speedMul: 1, timers: [] };
 
   constructor(o: EnemySpawnOptions) {
     this.uid = o.uid;
@@ -77,12 +86,18 @@ export class EnemyState implements Circle, DamageTarget {
     this.baseSpeed = o.def.speed * o.speedMul;
     this.flying = o.def.traits.includes('flying');
     this.stealth = o.def.traits.includes('stealth');
+    this.altitude = this.flying ? FLYING_ALTITUDE : 0;
     this.distance = o.distance;
     this.place(o.path);
   }
 
   get resist(): Partial<Record<DamageType, number>> | undefined {
     return this.def.resist;
+  }
+
+  /** Underground right now: untargetable and untouched by splash. */
+  get submerged(): boolean {
+    return this.burrowed;
   }
 
   get isBoss(): boolean {

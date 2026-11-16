@@ -1,4 +1,4 @@
-import type { EnemyAbilityDef } from './types';
+import type { ComboPartDef, EnemyAbilityDef } from './types';
 import type { EnemyState } from './EnemyState';
 import type { SimContext } from './SimContext';
 
@@ -13,7 +13,9 @@ export type AbilityHandler<K extends AbilityKind> = (
 /** One handler per ability kind (adding a kind to `EnemyAbilityDef` forces a handler here). */
 export type AbilityRegistry = { [K in AbilityKind]: AbilityHandler<K> };
 
-/** Spacing of summoned enemies behind their summoner (px). */
+/** How far behind its summoner the first summoned enemy appears (px). */
+const SUMMON_BEHIND = 20;
+/** Spacing between summoned enemies (px). */
 const SUMMON_SPACING = 12;
 const allies: EnemyState[] = [];
 
@@ -29,14 +31,22 @@ export const ENEMY_ABILITIES: AbilityRegistry = {
   shieldAura(enemy, a, ctx, dt) {
     if (!every(enemy, a.interval, dt)) return;
     for (const ally of ctx.queryEnemies(enemy.x, enemy.y, a.radius, allies)) {
-      if (ally !== enemy) ally.shield = Math.max(ally.shield, a.amount);
+      if (ally === enemy) continue;
+      ally.shield = Math.max(ally.shield, a.amount);
+      ally.maxShield = Math.max(ally.maxShield, a.amount);
     }
   },
   healAura(enemy, a, ctx, dt) {
     if (!every(enemy, a.interval, dt)) return;
+    let amount = 0;
     for (const ally of ctx.queryEnemies(enemy.x, enemy.y, a.radius, allies)) {
-      ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * a.fraction);
+      const hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * a.fraction);
+      amount += hp - ally.hp;
+      ally.hp = hp;
     }
+    ctx.events.push({
+      type: 'enemyHealed', uid: enemy.uid, enemyId: enemy.def.id, x: enemy.x, y: enemy.y, radius: a.radius, amount,
+    });
   },
   burrow(enemy, a, _ctx, dt) {
     if (!every(enemy, enemy.burrowed ? a.interval : a.duration, dt)) return;
@@ -44,8 +54,8 @@ export const ENEMY_ABILITIES: AbilityRegistry = {
   },
   spawn(enemy, a, ctx, dt) {
     if (!every(enemy, a.interval, dt)) return;
-    for (let i = 1; i <= a.count; i++) {
-      ctx.spawnEnemy(a.enemyId, enemy.pathIndex, enemy.distance - i * SUMMON_SPACING, enemy.wave);
+    for (let i = 0; i < a.count; i++) {
+      ctx.spawnEnemy(a.enemyId, enemy.pathIndex, enemy.distance - SUMMON_BEHIND - i * SUMMON_SPACING, enemy.wave);
     }
   },
   enrage(enemy, a) {
@@ -60,11 +70,26 @@ export const ENEMY_ABILITIES: AbilityRegistry = {
       if (next.speedMul !== undefined) rt.speedMul = next.speedMul;
       if (next.armor !== undefined) enemy.armor = next.armor;
       rt.timer = next.ability && 'interval' in next.ability ? next.ability.interval : 0;
-      ctx.events.push({ type: 'bossPhase', uid: enemy.uid, enemyId: enemy.def.id, phase: rt.phase });
+      rt.timers.length = 0;
+      enemy.burrowed = false;
+      ctx.events.push({
+        type: 'bossPhase', uid: enemy.uid, enemyId: enemy.def.id, phase: rt.phase, name: next.name ?? `Phase ${rt.phase}`,
+      });
       next = a.phases[rt.phase];
     }
     const current = rt.phase > 0 ? a.phases[rt.phase - 1]?.ability : undefined;
     if (current) updateAbility(enemy, current, ctx, dt);
+  },
+  combo(enemy, a, ctx, dt) {
+    const rt = enemy.ability;
+    const own = rt.timer;
+    for (let i = 0; i < a.abilities.length; i++) {
+      const part = a.abilities[i] as ComboPartDef;
+      rt.timer = rt.timers[i] ?? ('interval' in part ? part.interval : 0);
+      updateAbility(enemy, part, ctx, dt);
+      rt.timers[i] = rt.timer;
+    }
+    rt.timer = own;
   },
 };
 

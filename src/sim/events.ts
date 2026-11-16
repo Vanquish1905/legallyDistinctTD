@@ -17,7 +17,9 @@ export type SimEvent =
   | { type: 'waveStart'; wave: number; early: boolean; bonus: number }
   | { type: 'waveCleared'; wave: number; bonus: number }
   | { type: 'bossSpawn'; uid: number; enemyId: string; name: string }
-  | { type: 'bossPhase'; uid: number; enemyId: string; phase: number }
+  | { type: 'bossPhase'; uid: number; enemyId: string; phase: number; name: string }
+  /** A heal aura pulsed at (x, y); `amount` is the total HP restored to allies (may be 0). */
+  | { type: 'enemyHealed'; uid: number; enemyId: string; x: number; y: number; radius: number; amount: number }
   | { type: 'moneyChanged'; money: number; delta: number }
   | { type: 'livesChanged'; lives: number; delta: number }
   | { type: 'gameWon'; wave: number }
