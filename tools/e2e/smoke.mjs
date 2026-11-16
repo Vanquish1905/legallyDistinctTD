@@ -1,7 +1,6 @@
 // Playwright smoke test: serves dist via `vite preview`, loads the page and checks for errors.
-import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import net from 'node:net';
 
@@ -41,10 +40,11 @@ async function waitForServer(url, tries = 50) {
 
 const { chromium } = loadPlaywright();
 const port = await freePort();
-const server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
   stdio: 'ignore',
 });
 const errors = [];
+const isFontHost = (u) => /^https?:\/\/fonts\.(googleapis|gstatic)\.com\//.test(u || '');
 let browser;
 try {
   const url = `http://127.0.0.1:${port}/`;
@@ -53,7 +53,15 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(`console: ${m.text()}`);
+    if (m.type() !== 'error') return;
+    if (isFontHost(m.location().url)) return;
+    errors.push(`console: ${m.text()} (${m.location().url})`);
+  });
+  page.on('requestfailed', (r) => {
+    if (!isFontHost(r.url())) errors.push(`requestfailed: ${r.url()} ${r.failure()?.errorText ?? ''}`);
+  });
+  page.on('response', (r) => {
+    if (r.status() >= 400 && !isFontHost(r.url())) errors.push(`http ${r.status()}: ${r.url()}`);
   });
   await page.goto(url);
   await page.waitForFunction(() => window.__LDTD__?.ready === true, null, { timeout: 15000 });
@@ -67,10 +75,8 @@ try {
   server.kill();
 }
 
-// Blocked external font requests (offline sandbox) are not game errors.
-const real = errors.filter((e) => !/fonts\.(googleapis|gstatic)|ERR_|Failed to load resource/.test(e));
-if (real.length) {
-  console.error('Smoke test failed:\n' + real.join('\n'));
+if (errors.length) {
+  console.error('Smoke test failed:\n' + errors.join('\n'));
   process.exit(1);
 }
 console.log('Smoke test passed');
