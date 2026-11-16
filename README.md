@@ -1,7 +1,7 @@
 #  LegallyDistinctTD🎈
 
 <p align="center">
-  <img src="readme Images/LegallyDistinctTD.png" width="1216" alt="Legally Distinct TD"/>
+  <img src="legacy/greenfoot/readme Images/LegallyDistinctTD.png" width="1216" alt="Legally Distinct TD"/>
 </p>
 
 <p align="center">
