@@ -10,6 +10,8 @@
     "test": "vitest run",
     "lint": "tsc --noEmit",
     "art": "tsx tools/art/generate.ts",
+    "art:sheet": "npm run art && tsx tools/art/sheet.ts",
+    "art:check": "tsc -p tools/art --noEmit",
     "e2e": "npm run build && node tools/e2e/smoke.mjs"
   },
   "dependencies": {
