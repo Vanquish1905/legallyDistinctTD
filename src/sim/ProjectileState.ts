@@ -131,7 +131,7 @@ const scratch: EnemyState[] = [];
 
 function steerHoming(p: ProjectileState, ctx: SimContext): void {
   let target = p.targetUid >= 0 ? ctx.getEnemy(p.targetUid) : undefined;
-  if (target && !ctx.canHit(target, p.spec)) target = undefined;
+  if (target && (!ctx.canHit(target, p.spec) || p.hits.includes(target.uid))) target = undefined;
   if (!target) {
     p.targetUid = -1;
     let best = Infinity;

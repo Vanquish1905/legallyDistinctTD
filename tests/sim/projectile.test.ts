@@ -104,6 +104,21 @@ describe('homing projectiles', () => {
   });
 });
 
+describe('homing pierce', () => {
+  it('drops a target it already hit and homes onto a new one', () => {
+    const w = world();
+    const first = at(w, 600);
+    const second = at(w, 300);
+    w.spawnProjectile(shot({
+      motion: 'homing', x: 600, y: PATH_Y - 200, targetX: 600, targetY: PATH_Y, targetUid: first.uid,
+      speed: 600, pierce: 3, homingRadius: 2000,
+    }));
+    tick(w, 180);
+    expect(first.hp).toBe(90);
+    expect(second.hp).toBe(90);
+  });
+});
+
 describe('lobbed projectiles', () => {
   it('fly an arc and burst on the ground, never hitting flyers', () => {
     const w = world();
@@ -132,6 +147,42 @@ describe('projectile behaviour', () => {
     expect(fired).toBe(8);
     expect(e.maxHp - e.hp).toBeGreaterThanOrEqual(7);
     expect(tower.damageDealt).toBe(e.maxHp - e.hp);
+  });
+
+  it('fires several shots per tick for sub-tick cooldowns without building up debt', () => {
+    const minigun = stubTower({ id: 'minigun' }, { cooldown: SIM_DT / 3, damage: 1, projectileSpeed: 0, range: 300 });
+    const w = world({ minigun }, { still: stubEnemy({ id: 'still', speed: 0, hp: 1e9 }) });
+    const tower = new TowerState({ uid: w.nextUid++, def: minigun, x: 600, y: PATH_Y - 100, spent: 0, placedBuildWave: 0 });
+    w.addTower(tower);
+    const e = at(w, 600);
+    tick(w, 60);
+    expect(e.maxHp - e.hp).toBe(180);
+    expect(tower.cooldownLeft).toBeGreaterThanOrEqual(-tower.cooldown - 1e-9);
+    // idle with no target, then a target appears: no catch-up burst
+    e.alive = false;
+    w.compactEnemies();
+    tick(w, 120);
+    const next = at(w, 600);
+    tick(w, 1);
+    expect(next.maxHp - next.hp).toBeLessThanOrEqual(4);
+  });
+
+  it('drops cooldown debt instead of bursting to catch up', () => {
+    const gun = stubTower({}, { cooldown: 0.25, damage: 1, projectileSpeed: 0, range: 300 });
+    const w = world({ gun }, { still: stubEnemy({ id: 'still', speed: 0, hp: 1e9 }) });
+    const tower = new TowerState({ uid: w.nextUid++, def: gun, x: 600, y: PATH_Y - 100, spent: 0, placedBuildWave: 0 });
+    w.addTower(tower);
+    const e = at(w, 600);
+    tower.cooldownLeft = -5; // e.g. buffed cooldown mid-flight or a restored odd value: 20 shots of debt
+    w.tickTowers(SIM_DT);
+    expect(e.maxHp - e.hp).toBeLessThanOrEqual(8);
+    expect(tower.cooldownLeft).toBeGreaterThanOrEqual(-SIM_DT);
+    let before = e.hp;
+    w.tickTowers(SIM_DT);
+    expect(before - e.hp).toBe(1);
+    before = e.hp;
+    for (let i = 0; i < 10; i++) w.tickTowers(SIM_DT);
+    expect(before - e.hp).toBe(0);
   });
 
   it('hitscans when projectile speed is 0 and skips targets it cannot see', () => {

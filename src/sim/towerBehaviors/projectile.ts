@@ -69,9 +69,14 @@ export function fireAt(tower: TowerState, target: EnemyState, ctx: SimContext, m
   });
 }
 
+/** Upper bound on shots one tower fires in a single tick (very fast towers). */
+const MAX_SHOTS_PER_TICK = 8;
+
 /**
  * The generic firing loop: count the cooldown down, and when ready and a target is in range,
  * fire and restart the cooldown (keeping the sub-tick remainder so fire rates stay exact).
+ * Cooldowns shorter than a tick fire several shots per tick; leftover debt is capped at one
+ * cooldown (and one tick) so a tower never bursts to catch up later.
  * `motion` forces a projectile motion; by default it comes from `TowerDef.projectile`.
  */
 export function createProjectileBehavior(motion?: ProjectileMotion): TowerBehavior {
@@ -85,9 +90,17 @@ export function createProjectileBehavior(motion?: ProjectileMotion): TowerBehavi
         tower.cooldownLeft = 0;
         return;
       }
-      tower.targetUid = target.uid;
-      fireAt(tower, target, ctx, motion ?? tower.def.projectile?.motion ?? 'straight');
-      tower.cooldownLeft += tower.cooldown;
+      const cooldown = Math.max(tower.cooldown, 1e-6);
+      const m = motion ?? tower.def.projectile?.motion ?? 'straight';
+      let current: EnemyState | null = target;
+      for (let shots = 0; current && tower.cooldownLeft <= 0 && shots < MAX_SHOTS_PER_TICK; shots++) {
+        tower.targetUid = current.uid;
+        fireAt(tower, current, ctx, m);
+        tower.cooldownLeft += cooldown;
+        if (!current.alive) current = ctx.findTarget(tower);
+      }
+      // Normal sub-tick remainders are > -dt; anything beyond is lag debt and is dropped.
+      tower.cooldownLeft = Math.max(tower.cooldownLeft, current ? -Math.min(cooldown, dt) : 0);
     },
   };
 }

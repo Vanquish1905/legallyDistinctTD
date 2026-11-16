@@ -120,6 +120,18 @@ describe('abilities', () => {
     expect(e.hp).toBeCloseTo(44);
   });
 
+  it('damage over time ignores armor but not resist', () => {
+    const w = world({ tick: stubEnemy({ id: 'tick', speed: 0, hp: 1000, armor: 2, resist: { fire: 0.5 } }) });
+    const e = w.spawnEnemy('tick', 0, 100, 1)!;
+    const bleed = { damage: 0, damageType: 'physical' as const, canHitFlying: true, canHitStealth: true };
+    w.hitEnemy(e, { ...bleed, dot: { dps: 30, duration: 1, type: 'physical' } }, null);
+    tick(w, 1);
+    expect(e.hp).toBeCloseTo(970);
+    w.hitEnemy(e, { ...bleed, dot: { dps: 30, duration: 1, type: 'fire' } }, null);
+    tick(w, 1);
+    expect(e.hp).toBeCloseTo(955);
+  });
+
   it('slowImmune enemies ignore slows', () => {
     const w = world({ jelly: stubEnemy({ id: 'jelly', traits: ['slowImmune'] }) });
     const e = w.spawnEnemy('jelly', 0, 100, 1)!;

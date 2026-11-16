@@ -63,8 +63,9 @@ export class World implements SimContext {
   /** True while behaviours run, so removals are deferred until the loop ends. */
   private updatingTowers = false;
   private removedTowers = false;
+  /** Damage over time ignores armor (it is per-hit; resist still applies) and emits no hit events. */
   private readonly dotSink = (dot: DotEffect, amount: number): void => {
-    if (this.dotTarget) this.applyHp(this.dotTarget, amount, dot.type, dot.source >= 0 ? dot.source : null, false, true);
+    if (this.dotTarget) this.applyHp(this.dotTarget, amount, dot.type, dot.source >= 0 ? dot.source : null, true, true);
   };
 
   constructor(o: WorldOptions) {
