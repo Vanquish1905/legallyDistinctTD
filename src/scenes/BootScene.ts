@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FIELD_W, FONT_FAMILY, GAME_H, GAME_W } from '../config';
-import { ART_MANIFEST } from '../data/artManifest';
+import { SPRITE_ART, artEntries, loadArt } from '../data/loadArt';
 import { MAPS } from '../data/maps';
 import { TOWER_ORDER_PREVIEW, ENEMY_PREVIEW } from './bootPreview';
 
@@ -11,8 +11,14 @@ declare global {
   }
 }
 
+const PREVIEW_MAP = (() => {
+  const map = MAPS.find((m) => m.id === 'green-valley') ?? MAPS[0];
+  if (!map) throw new Error('No maps defined');
+  return map;
+})();
+
 /**
- * Loads every generated texture with a branded progress bar, then shows a
+ * Loads every generated sprite texture with a branded progress bar, then shows a
  * preview of the new art: a map background, parasites marching along its path
  * and the tower line-up. The playable scenes plug in after this one.
  */
@@ -37,15 +43,12 @@ export class BootScene extends Phaser.Scene {
     const fill = this.add.rectangle(x + 2, y, 0, 10, 0x38bdf8).setOrigin(0, 0.5);
     this.load.on('progress', (p: number) => fill.setSize((barW - 4) * p, 10));
 
-    for (const e of ART_MANIFEST) {
-      this.load.svg(e.key, e.path, { width: e.width, height: e.height });
-    }
+    loadArt(this.load, this.textures, [...SPRITE_ART, ...artEntries([PREVIEW_MAP.background])]);
   }
 
   create(): void {
     this.children.removeAll(true);
-    const map = MAPS.find((m) => m.id === 'green-valley') ?? MAPS[0];
-    if (!map) throw new Error('No maps defined');
+    const map = PREVIEW_MAP;
 
     this.add.image(0, 0, map.background).setOrigin(0, 0);
     this.add.rectangle(FIELD_W, 0, GAME_W - FIELD_W, GAME_H, 0x0d1117).setOrigin(0, 0);
@@ -64,7 +67,7 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    window.__LDTD__ = { ready: true, textures: ART_MANIFEST.length };
+    window.__LDTD__ = { ready: true, textures: SPRITE_ART.length + 1 };
   }
 
   /** Sends a looping parade of enemies along the path polyline. */

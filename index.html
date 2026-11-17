@@ -12,10 +12,21 @@
       body { font-family: 'Rubik', system-ui, sans-serif; }
       #game { width: 100vw; height: 100vh; }
       #game canvas { display: block; }
+      #boot-error { display: none; position: fixed; inset: 0; padding: 24px; color: #e2e8f0; font: 16px/1.5 system-ui, sans-serif; background: #0d1117; white-space: pre-wrap; }
     </style>
+    <script>
+      // Shows load/runtime errors as text instead of a blank page (helps when reporting bugs from phones).
+      window.addEventListener('error', function (e) {
+        var box = document.getElementById('boot-error');
+        if (!box) return;
+        box.style.display = 'block';
+        box.textContent = 'LegallyDistinctTD hit an error while starting:\n\n' + (e.message || (e.target && e.target.src) || 'unknown error');
+      }, true);
+    </script>
   </head>
   <body>
     <div id="game"></div>
+    <div id="boot-error"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
