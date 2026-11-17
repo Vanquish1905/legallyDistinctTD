@@ -20,6 +20,13 @@ export class WaveRunner {
     return this.active.length > 0;
   }
 
+  /** Seconds until the most recently started wave has released its last spawn (0 when none). */
+  remainingSpawnTime(): number {
+    const w = this.active[this.active.length - 1];
+    const last = w?.spawns[w.spawns.length - 1];
+    return w && last ? Math.max(0, last.at - w.elapsed) : 0;
+  }
+
   /** Begin releasing a wave's spawns. */
   start(wave: number, spawns: readonly SpawnEvent[]): void {
     this.active.push({ wave, spawns, cursor: 0, elapsed: 0 });

@@ -21,8 +21,25 @@ export interface WaveSource {
   spawnsFor(wave: number, pathCount: number): readonly SpawnEvent[];
   /** Money paid when `wave` is cleared. */
   clearBonus(wave: number): number;
-  /** Money paid for calling `wave` while the previous one is still running. */
-  earlyStartBonus(wave: number): number;
+  /**
+   * Money paid for calling `wave` while the previous one is still running. `remainingSpawnTime`
+   * is how many seconds of spawning the latest running wave still had left.
+   */
+  earlyStartBonus(wave: number, remainingSpawnTime?: number): number;
+  /** Boss id of a wave, if it has one. */
+  bossOf?(wave: number): string | undefined;
+  /** Summary of a wave for the next-wave preview. */
+  preview?(wave: number): WavePreview;
+}
+
+/** What the UI shows about an upcoming wave. */
+export interface WavePreview {
+  groups: { enemy: string; count: number }[];
+  boss?: string;
+  /** Regular enemies appearing for the first time this wave. */
+  newEnemies: string[];
+  /** Total HP of the wave (including split children), with difficulty and freeplay scaling. */
+  totalHpEstimate: number;
 }
 
 /** Money rules for `ScriptedWaveSource`. */

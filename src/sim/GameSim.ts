@@ -10,7 +10,8 @@ import { TOWER_BEHAVIORS } from './towerBehaviors';
 import { World } from './World';
 import { TowerState, canUpgradePath } from './TowerState';
 import { WaveRunner } from './waveRunner';
-import { ScriptedWaveSource, type SpawnEvent, type WaveSource } from './WaveSource';
+import type { SpawnEvent, WavePreview, WaveSource } from './WaveSource';
+import { WaveManager } from './WaveManager';
 import { checkPlacement, type PlacementResult } from './placement';
 import { scaledCost, sellValue } from './Economy';
 import { SNAPSHOT_VERSION, type SimSnapshot } from './snapshot';
@@ -18,6 +19,8 @@ import { canUpgrade, type UpgradeCheck } from './upgrades';
 
 /** Longest frame time `step` will simulate at once (s); prevents a spiral after tab sleep. */
 const MAX_STEP = 0.5;
+/** With auto-start on, the next wave starts this long after the build phase begins (s). */
+export const AUTO_START_DELAY = 3;
 
 /** Game phase. 'build' = between waves, 'wave' = at least one wave running. */
 export type SimPhase = 'build' | 'wave' | 'won' | 'lost';
@@ -32,7 +35,7 @@ export interface GameSimOptions {
   towers?: Readonly<Record<string, TowerDef>>;
   enemies?: Readonly<Record<string, EnemyDef>>;
   behaviors?: Readonly<Record<string, TowerBehavior>>;
-  /** Where waves come from (default: no waves). */
+  /** Where waves come from (default: the content WaveManager). */
   waves?: WaveSource;
 }
 
@@ -46,7 +49,10 @@ export class GameSim {
   wave = 0;
   /** True after the player chose to keep playing past the last wave. */
   freeplay = false;
+  /** Start the next wave automatically AUTO_START_DELAY s into each build phase (after wave 1). */
+  autoStart = false;
   readonly seed: number;
+  private autoTimer = 0;
   private readonly world: World;
   private readonly source: WaveSource;
   private readonly runner = new WaveRunner();
@@ -54,7 +60,8 @@ export class GameSim {
 
   constructor(opts: GameSimOptions) {
     this.seed = opts.seed;
-    this.source = opts.waves ?? new ScriptedWaveSource([]);
+    this.source = opts.waves
+      ?? new WaveManager({ difficulty: opts.difficulty, seed: opts.seed, enemies: opts.enemies ?? ENEMIES });
     const save = opts.save;
     if (save) {
       if (save.version !== SNAPSHOT_VERSION) throw new Error(`Unsupported save version ${save.version}`);
@@ -95,6 +102,12 @@ export class GameSim {
   private tick(): void {
     if (this.phase === 'won' || this.phase === 'lost') return;
     const w = this.world;
+    if (this.autoStart && this.phase === 'build' && this.wave > 0) {
+      this.autoTimer += SIM_DT;
+      if (this.autoTimer >= AUTO_START_DELAY - 1e-9) this.startNextWave();
+    } else {
+      this.autoTimer = 0;
+    }
     w.time += SIM_DT;
     this.runner.update(SIM_DT, this.spawnFromWave);
     w.tickEnemies(SIM_DT);
@@ -223,12 +236,25 @@ export class GameSim {
     if (this.phase === 'won' || this.phase === 'lost') return;
     if (!this.freeplay && this.wave >= this.world.difficulty.waves) return;
     const early = this.phase === 'wave';
+    const bonus = this.nextWaveBonus();
     this.wave++;
-    const bonus = early ? this.source.earlyStartBonus(this.wave) : 0;
+    this.autoTimer = 0;
     this.world.economy.earn(bonus);
     this.runner.start(this.wave, this.source.spawnsFor(this.wave, this.world.paths.length));
     this.phase = 'wave';
-    this.world.events.push({ type: 'waveStart', wave: this.wave, early, bonus });
+    const boss = this.source.bossOf?.(this.wave);
+    this.world.events.push({ type: 'waveStart', wave: this.wave, early, bonus, ...(boss ? { boss } : {}) });
+  }
+
+  /** Bonus `startNextWave` would pay right now (0 outside a running wave). */
+  nextWaveBonus(): number {
+    if (this.phase !== 'wave') return 0;
+    return this.source.earlyStartBonus(this.wave + 1, this.runner.remainingSpawnTime());
+  }
+
+  /** Preview of a wave (default: the next one), when the wave source supports it. */
+  previewWave(wave = this.wave + 1): WavePreview | null {
+    return this.source.preview?.(wave) ?? null;
   }
 
   /** After winning, keep playing endless waves. */
