@@ -76,7 +76,8 @@ npm run e2e      # build + headless smoke test
 - 18 towers with 2 upgrade paths × 3 tiers each, 14 parasites and 5 bosses with special abilities (helicopter flight and the railgun line shot still to come)
 - 9 maps (tutorial + 8), including multi-path maps, with generated backgrounds
 - Deterministic simulation core: pathing, armor and resistances, slows, damage over time, splash, pierce, homing and lobbed shots, stealth and flying, saves between waves
-- Still to come: the playable game screen, HUD with scrollable tower selector, menus and popups, wave manager
+- Wave manager with 60 hand-made waves, bosses every 10 waves, 4 difficulties (Easy, Normal, Hard, Nightmare) and endless freeplay
+- Still to come: the playable game screen, HUD with scrollable tower selector, menus and popups
 
 ---
 
