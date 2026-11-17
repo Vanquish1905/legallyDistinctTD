@@ -14,6 +14,7 @@ import { ScriptedWaveSource, type SpawnEvent, type WaveSource } from './WaveSour
 import { checkPlacement, type PlacementResult } from './placement';
 import { scaledCost, sellValue } from './Economy';
 import { SNAPSHOT_VERSION, type SimSnapshot } from './snapshot';
+import { canUpgrade, type UpgradeCheck } from './upgrades';
 
 /** Longest frame time `step` will simulate at once (s); prevents a spiral after tab sleep. */
 const MAX_STEP = 0.5;
@@ -140,6 +141,12 @@ export class GameSim {
     if (!t || !canUpgradePath(t.tiers, path)) return null;
     const tier = t.def.paths[path].tiers[t.tiers[path]];
     return tier ? scaledCost(tier.cost, this.world.difficulty.costMul) : null;
+  }
+
+  /** Whether a tower can buy its next tier on `path` now ('maxed' | 'locked' | 'money'); null for unknown uids. */
+  canUpgrade(uid: number, path: 0 | 1): UpgradeCheck | null {
+    const t = this.world.getTower(uid);
+    return t ? canUpgrade(t, path, this.money, this.world.difficulty.costMul) : null;
   }
 
   /** Whether `towerId` could be placed at (x, y) now, with a reason when not. */

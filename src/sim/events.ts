@@ -10,6 +10,10 @@ export type SimEvent =
   | { type: 'towerPlaced'; uid: number; towerId: string; x: number; y: number }
   | { type: 'towerUpgraded'; uid: number; towerId: string; path: 0 | 1; tier: number }
   | { type: 'towerSold'; uid: number; towerId: string; x: number; y: number; refund: number }
+  /** A tower removed by its own behaviour without refund (e.g. a spike trap out of spikes). */
+  | { type: 'towerExpired'; uid: number; towerId: string; x: number; y: number }
+  /** Money paid out by a tower (Coin Factory at wave clear); `moneyChanged` follows separately. */
+  | { type: 'income'; uid: number; towerId: string; x: number; y: number; amount: number }
   | { type: 'projectileSpawn'; uid: number; kind: string; x: number; y: number; towerUid: number }
   | { type: 'explosion'; x: number; y: number; radius: number; damageType: DamageType }
   | { type: 'chainLightning'; towerUid: number; points: Vec2[] }

@@ -1,4 +1,4 @@
-import type { NumericStatKey, StatMods, TargetMode, TowerDef, TowerStats } from './types';
+import type { NestedStatGroup, NumericStatKey, StatModKey, StatMods, TargetMode, TowerDef, TowerStats } from './types';
 
 /** Highest tier per upgrade path. */
 export const MAX_TIER = 3;
@@ -17,19 +17,38 @@ export function canUpgradePath(tiers: Readonly<Tiers>, path: 0 | 1): boolean {
   return !(next > 2 && other > 2);
 }
 
+/** Stat sub-objects (copied on clone, addressable by dotted upgrade keys). */
+const NESTED_GROUPS: readonly NestedStatGroup[] = ['slow', 'dot', 'chain', 'buff', 'ramp', 'flight', 'interest'];
+
 function cloneStats(s: TowerStats): TowerStats {
-  return {
-    ...s,
-    slow: s.slow && { ...s.slow },
-    dot: s.dot && { ...s.dot },
-    chain: s.chain && { ...s.chain },
-    buff: s.buff && { ...s.buff },
-  };
+  const out: TowerStats = { ...s };
+  const target = out as unknown as Record<string, unknown>;
+  for (const g of NESTED_GROUPS) {
+    const sub = s[g];
+    if (sub) target[g] = { ...sub };
+  }
+  return out;
+}
+
+/** Apply `fn` to one stat; dotted keys reach into a sub-object and are skipped when it is absent. */
+function modifyStat(stats: TowerStats, key: StatModKey, fn: (v: number) => number): void {
+  const dot = key.indexOf('.');
+  if (dot < 0) {
+    const k = key as NumericStatKey;
+    stats[k] = fn(stats[k] ?? 0);
+    return;
+  }
+  const group = stats[key.slice(0, dot) as NestedStatGroup] as Record<string, unknown> | undefined;
+  if (!group) return;
+  const field = key.slice(dot + 1);
+  const v = group[field];
+  group[field] = fn(typeof v === 'number' ? v : 0);
 }
 
 /**
  * Stats of `def` with the given tiers bought. All adds apply first, then all multipliers, then
- * sets, so the order the tiers were bought in does not matter. Returns the stats and the union of
+ * sets, so the order the tiers were bought in does not matter. Dotted keys (`'slow.duration'`)
+ * modify a field of a sub-object that the base stats already have. Returns the stats and the union of
  * all upgrade flags.
  */
 export function computeStats(def: TowerDef, tiers: Readonly<Tiers>): { stats: TowerStats; flags: Set<string> } {
@@ -44,14 +63,10 @@ export function computeStats(def: TowerDef, tiers: Readonly<Tiers>): { stats: To
     }
   }
   for (const mods of bought) {
-    for (const [k, v] of Object.entries(mods.add ?? {}) as [NumericStatKey, number][]) {
-      stats[k] = (stats[k] ?? 0) + v;
-    }
+    for (const [k, v] of Object.entries(mods.add ?? {}) as [StatModKey, number][]) modifyStat(stats, k, (x) => x + v);
   }
   for (const mods of bought) {
-    for (const [k, v] of Object.entries(mods.mul ?? {}) as [NumericStatKey, number][]) {
-      stats[k] = (stats[k] ?? 0) * v;
-    }
+    for (const [k, v] of Object.entries(mods.mul ?? {}) as [StatModKey, number][]) modifyStat(stats, k, (x) => x * v);
   }
   for (const mods of bought) {
     if (mods.set) Object.assign(stats, cloneStats({ ...stats, ...mods.set }));

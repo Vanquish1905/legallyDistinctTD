@@ -22,6 +22,8 @@ export interface SimContext {
   readonly events: SimEventQueue;
   readonly enemies: ReadonlyArray<EnemyState>;
   readonly towers: ReadonlyArray<TowerState>;
+  /** The player's current money (read-only; use `addMoney` to pay out). */
+  readonly money: number;
   /** Alive enemy by uid. */
   getEnemy(uid: number): EnemyState | undefined;
   /** Path follower for a map path index. */

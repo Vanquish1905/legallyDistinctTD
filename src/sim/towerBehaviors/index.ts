@@ -1,23 +1,29 @@
 import type { TowerBehavior } from './types';
 import { createProjectileBehavior } from './projectile';
+import { auraBehavior } from './aura';
+import { beamBehavior } from './beam';
+import { chainBehavior } from './chain';
+import { incomeBehavior } from './income';
+import { supportBehavior } from './support';
+import { trapBehavior } from './trap';
 
-/** Placeholder for behaviours whose logic is not written yet: the tower stays idle. */
-const idle: TowerBehavior = { update() {} };
+const shooter = createProjectileBehavior();
 
 /**
  * All tower behaviours, keyed by `TowerDef.behavior`. 'projectile' is the default shooter;
- * 'lob' is the same loop with arcing shells.
+ * 'lob' arcs shells and 'boomerang' throws out-and-back shots. 'heli' and 'line' currently use the
+ * plain projectile loop (the helicopter fires from its pad, the rail fires a fast piercing slug).
  */
 export const TOWER_BEHAVIORS: Record<string, TowerBehavior> = {
-  projectile: createProjectileBehavior(),
+  projectile: shooter,
   lob: createProjectileBehavior('lob'),
-  beam: idle,
-  chain: idle,
-  aura: idle,
-  trap: idle,
-  income: idle,
-  support: idle,
-  heli: idle,
-  line: idle,
-  boomerang: idle,
+  boomerang: createProjectileBehavior('boomerang'),
+  beam: beamBehavior,
+  chain: chainBehavior,
+  aura: auraBehavior,
+  trap: trapBehavior,
+  income: incomeBehavior,
+  support: supportBehavior,
+  heli: shooter,
+  line: shooter,
 };

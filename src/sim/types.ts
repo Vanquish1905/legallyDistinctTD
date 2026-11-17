@@ -77,19 +77,46 @@ export interface TowerStats {
   /** Money per cleared wave. */
   income?: number;
   buff?: { range: number; cooldownMul: number; revealStealth: boolean; radius: number };
+  /** Targets per volley (projectile/line towers; default 1). Heli: bullets per burst. */
+  shots?: number;
+  /** Trap uses (spikes) before it breaks. */
+  charges?: number;
+  /** Px an aura pulse pushes enemies back along their path (bosses are immune). */
+  knockback?: number;
+  /** Stun seconds per hit (chain, aura, line and hitscan attacks; halved on bosses). */
+  stun?: number;
+  /** Beam damage ramp: multiplier grows from 1 to `max` over `time` s on the same target. */
+  ramp?: { max: number; time: number };
+  /** Helicopter flight: speed in px/s, hunting radius around its pad or patrol point. */
+  flight?: { speed: number; leash: number };
+  /** Paid at each wave clear: `rate` × current money, at most `cap`. */
+  interest?: { rate: number; cap: number };
 }
 
 /** Numeric `TowerStats` fields that upgrades may add to or multiply. */
 export type NumericStatKey = 'range' | 'cooldown' | 'damage' | 'pierce' | 'projectileSpeed'
-  | 'splashRadius' | 'income';
+  | 'splashRadius' | 'income' | 'shots' | 'charges' | 'knockback' | 'stun';
+
+/** `TowerStats` sub-objects whose numeric fields upgrades may modify as `'<group>.<field>'`. */
+export type NestedStatGroup = 'slow' | 'dot' | 'chain' | 'buff' | 'ramp' | 'flight' | 'interest';
+
+type NumericFieldOf<T> = { [K in keyof T]-?: T[K] extends number ? K : never }[keyof T] & string;
+
+/** Dotted key of a numeric field inside a stat sub-object, e.g. `'slow.duration'`. */
+export type NestedStatKey = {
+  [G in NestedStatGroup]: `${G}.${NumericFieldOf<NonNullable<TowerStats[G]>>}`
+}[NestedStatGroup];
+
+/** Anything an upgrade may add to or multiply. Nested keys only apply when the sub-object exists. */
+export type StatModKey = NumericStatKey | NestedStatKey;
 
 /**
  * Stat changes of one upgrade tier. All `add`s of all bought tiers are applied first, then all
  * `mul`s, then `set` (in tier order), so the result does not depend on purchase order.
  */
 export interface StatMods {
-  add?: Partial<Record<NumericStatKey, number>>;
-  mul?: Partial<Record<NumericStatKey, number>>;
+  add?: Partial<Record<StatModKey, number>>;
+  mul?: Partial<Record<StatModKey, number>>;
   set?: Partial<TowerStats>;
   /** Free-form switches read by tower behaviours (e.g. a tier-3 signature ability). */
   flags?: string[];
@@ -98,8 +125,8 @@ export interface StatMods {
 export interface UpgradeDef { name: string; description: string; cost: number; mods: StatMods; icon: string }
 export interface UpgradePathDef { name: string; tiers: [UpgradeDef, UpgradeDef, UpgradeDef] }
 
-/** How the default projectile behaviour moves its shots. */
-export type ProjectileMotion = 'straight' | 'homing' | 'lob';
+/** How the default projectile behaviour moves its shots ('boomerang' flies out and back). */
+export type ProjectileMotion = 'straight' | 'homing' | 'lob' | 'boomerang';
 
 /** Projectile look and motion for towers that shoot. */
 export interface ProjectileSpec {

@@ -172,6 +172,10 @@ export class World implements SimContext {
     return e;
   }
 
+  get money(): number {
+    return this.economy.money;
+  }
+
   addMoney(amount: number): void {
     this.economy.earn(amount);
   }

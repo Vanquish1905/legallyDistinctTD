@@ -73,6 +73,8 @@ export class ProjectileState {
   flightTime = 0;
   elapsed = 0;
   arcHeight = 0;
+  /** Boomerang shots: true once on the way back to where they were thrown from. */
+  returning = false;
   /** Uids of enemies already hit (each enemy is hit at most once per projectile). */
   readonly hits: number[] = [];
 
@@ -99,6 +101,7 @@ export class ProjectileState {
     this.radius = o.radius ?? PROJECTILE_RADIUS;
     this.traveled = 0;
     this.elapsed = 0;
+    this.returning = false;
     this.hits.length = 0;
     const dx = o.targetX - o.x;
     const dy = o.targetY - o.y;
@@ -155,6 +158,28 @@ function steerHoming(p: ProjectileState, ctx: SimContext): void {
   p.angle = Math.atan2(dy, dx);
 }
 
+/**
+ * Boomerang shots fly out for half their `maxDistance`, then turn back toward their start point
+ * (forgetting which enemies they hit, so each enemy can be hit once per leg) and expire on arrival.
+ */
+function steerBoomerang(p: ProjectileState, dt: number): void {
+  if (!p.returning && p.traveled >= p.maxDistance / 2) {
+    p.returning = true;
+    p.hits.length = 0;
+  }
+  if (!p.returning) return;
+  const dx = p.startX - p.x;
+  const dy = p.startY - p.y;
+  const d = Math.hypot(dx, dy);
+  if (d <= p.speed * dt) {
+    p.active = false;
+    return;
+  }
+  p.vx = (dx / d) * p.speed;
+  p.vy = (dy / d) * p.speed;
+  p.angle = Math.atan2(dy, dx);
+}
+
 function hitAlongSegment(p: ProjectileState, ctx: SimContext, x0: number, y0: number): void {
   const midX = (x0 + p.x) / 2;
   const midY = (y0 + p.y) / 2;
@@ -190,7 +215,8 @@ function updateLob(p: ProjectileState, ctx: SimContext, dt: number): void {
 /**
  * Advance one projectile by `dt`: straight shots fly on, homing shots re-aim every tick (and pick a
  * new target within `homingRadius` if theirs is gone), lobbed shells follow a parabola and burst on
- * the ground (never hitting flying enemies). Sets `active = false` when spent.
+ * the ground (never hitting flying enemies), boomerangs fly out and back. Sets `active = false`
+ * when spent.
  */
 export function updateProjectile(p: ProjectileState, ctx: SimContext, dt: number): void {
   if (!p.active) return;
@@ -199,6 +225,10 @@ export function updateProjectile(p: ProjectileState, ctx: SimContext, dt: number
     return;
   }
   if (p.motion === 'homing') steerHoming(p, ctx);
+  else if (p.motion === 'boomerang') {
+    steerBoomerang(p, dt);
+    if (!p.active) return;
+  }
   const x0 = p.x;
   const y0 = p.y;
   p.x += p.vx * dt;

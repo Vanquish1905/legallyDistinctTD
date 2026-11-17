@@ -64,7 +64,7 @@ export function fireAt(tower: TowerState, target: EnemyState, ctx: SimContext, m
     damage: s.damage,
     pierce: Math.max(1, Math.round(s.pierce)),
     splashRadius: s.splashRadius,
-    maxDistance: tower.range * SHOT_RANGE_FACTOR,
+    maxDistance: tower.range * (motion === 'boomerang' ? 2 : SHOT_RANGE_FACTOR),
     homingRadius: tower.def.projectile?.homingRadius,
   });
 }
