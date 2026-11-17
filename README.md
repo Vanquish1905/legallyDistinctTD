@@ -54,11 +54,29 @@ Basically, it's just like any other TD game just without any Pay-to-win Mechanic
 
 ## 🛠️ Tech Stack
 
->  May be subject to change in the future.
+> We moved engines. The old Greenfoot version still lives in `legacy/greenfoot/` if you miss it.
 
-- **Language:** Java 11
-- **Engine/Framework:** greenfoot 3.7.1
-- **Assets:** Not suspiciously similar to the other games anymore (we painted and composed 99% them)
+- **Language:** TypeScript (strict)
+- **Engine/Framework:** Phaser 3 + Vite, runs in any browser
+- **Simulation:** deterministic fixed-step game logic in `src/sim/` (no Phaser inside, fully unit tested)
+- **Assets:** all towers, parasites, bosses, icons and maps are generated as vector art by `tools/art/` (`npm run art`). Sounds and music are still ours.
+
+### Running it
+
+```bash
+npm install
+npm run dev      # play locally
+npm test         # unit tests
+npm run build    # production build into dist/
+npm run e2e      # build + headless smoke test
+```
+
+### What is in the new version so far
+
+- 18 towers, 14 parasites and 5 bosses designed (towers' upgrade logic still in progress)
+- 9 maps (tutorial + 8), including multi-path maps, with generated backgrounds
+- Deterministic simulation core: pathing, armor and resistances, slows, damage over time, splash, pierce, homing and lobbed shots, stealth and flying, saves between waves
+- Still to come: the playable game screen, HUD with scrollable tower selector, menus and popups, wave manager
 
 ---
 
