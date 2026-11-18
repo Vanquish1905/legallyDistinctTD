@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { ProjectileState } from '../sim/ProjectileState';
 import type { Effects } from './Effects';
 import { KeyedViews, type KeyedView } from './Pool';
-import { DEPTH } from './layers';
+import type { WorldLayers } from './WorldLayers';
 
 /** Kinds drawn additively (glowing). */
 const GLOW = new Set(['flame', 'frost', 'rail', 'toxin']);
@@ -24,7 +24,11 @@ interface ProjectileView extends KeyedView {
 export class ProjectileViews {
   private readonly views: KeyedViews<ProjectileView>;
 
-  constructor(private readonly scene: Phaser.Scene, private readonly effects: Effects) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly effects: Effects,
+    private readonly layers: WorldLayers,
+  ) {
     this.views = new KeyedViews<ProjectileView>(
       () => this.make(),
       (v) => {
@@ -90,7 +94,6 @@ export class ProjectileViews {
       body.setScale(1 + lift / 220);
       v.shadow.setPosition(p.x + lift * 0.15, p.y + lift * 0.1).setScale(Math.max(0.4, 1 - lift / 300));
     }
-    body.setDepth(DEPTH.projectile + (lift > 0 ? 1 : 0));
 
     const trail = TRAIL[p.kind];
     if (trail !== undefined) {
@@ -100,7 +103,7 @@ export class ProjectileViews {
         const back = 14;
         const px = p.x - Math.cos(p.angle) * back;
         const py = p.y - lift - Math.sin(p.angle) * back;
-        const puff = this.effects.fx.spawn('fx-smoke', px, py, 0.45, DEPTH.projectile - 1);
+        const puff = this.effects.fx.spawn('fx-smoke', px, py, 0.45, 'trail');
         if (puff) {
           puff.scale0 = 0.16;
           puff.scale1 = 0.42;
@@ -116,8 +119,8 @@ export class ProjectileViews {
     return {
       uid: 0,
       seen: 0,
-      body: scene.add.image(0, 0, 'proj-bullet').setVisible(false),
-      shadow: scene.add.image(0, 0, 'proj-bullet').setDepth(DEPTH.projectile - 2).setVisible(false),
+      body: this.layers.put('projectile', scene.add.image(0, 0, 'proj-bullet').setVisible(false)),
+      shadow: this.layers.put('projectileShadow', scene.add.image(0, 0, 'proj-bullet').setVisible(false)),
       kind: '',
       age: 0,
       trail: 0,

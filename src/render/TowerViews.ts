@@ -154,11 +154,15 @@ export class TowerViews {
     v.t = Math.random() * 10;
     const trap = t.def.placement === 'path';
     const depth = (trap ? DEPTH.trap : DEPTH.towerBase) + t.y * Y_SORT;
-    v.base.setTexture(t.def.sprite.base).setPosition(t.x, t.y).setScale(v.scale).setDepth(depth).setVisible(true).setAlpha(1);
+    // Pooled views may come from any other tower: reset every transform and visual property.
+    v.base.setTexture(t.def.sprite.base).setPosition(t.x, t.y).setScale(v.scale).setRotation(0)
+      .clearTint().setDepth(depth).setVisible(true).setAlpha(1);
     const turretKey = this.turretKey(t);
-    v.turret.setTexture(turretKey).setPosition(t.x, t.y).setScale(v.scale).setVisible(true).setAlpha(1);
+    const turretRotation = v.mode === 'aim' || v.mode === 'heli' ? v.angle : v.mode === 'trap' ? 0 : v.spinAngle;
+    v.turret.setTexture(turretKey).setPosition(v.mode === 'heli' ? v.hx : t.x, v.mode === 'heli' ? v.hy : t.y)
+      .setScale(v.scale).setRotation(turretRotation).clearTint().setVisible(true).setAlpha(1);
     v.turret.setDepth(v.mode === 'heli' ? DEPTH.heliBody : (trap ? DEPTH.trap + 0.5 : DEPTH.towerTurret) + t.y * Y_SORT);
-    v.flash.setTint(FLASH_TINT[t.def.id] ?? 0xffe08a).setVisible(false);
+    v.flash.setTint(FLASH_TINT[t.def.id] ?? 0xffe08a).setAlpha(1).setVisible(false);
     if (v.mode === 'heli') {
       v.rotor ??= this.scene.add.image(0, 0, 'tower-heli-rotor').setDepth(DEPTH.heliRotor);
       v.heliShadow ??= this.scene.add.image(0, 0, 'tower-heli-turret').setTintFill(0x000000).setDepth(DEPTH.flyingShadow);
@@ -212,7 +216,7 @@ export class TowerViews {
       case 'trap': {
         const max = t.memory.maxCharges ?? 0;
         const left = t.memory.charges ?? max;
-        turret.setScale(v.scale * popMul).setAlpha(max > 0 ? 0.45 + 0.55 * (left / max) : 1);
+        turret.setPosition(t.x, t.y).setRotation(0).setScale(v.scale * popMul).setAlpha(max > 0 ? 0.45 + 0.55 * (left / max) : 1);
         break;
       }
       case 'heli': {

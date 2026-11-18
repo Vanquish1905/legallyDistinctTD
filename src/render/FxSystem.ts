@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DEPTH } from './layers';
+import type { LayerName, WorldLayers } from './WorldLayers';
 import { QUALITY_CAP, QUALITY_MUL, type ParticleQuality } from './quality';
 
 /**
@@ -8,6 +8,8 @@ import { QUALITY_CAP, QUALITY_MUL, type ParticleQuality } from './quality';
  */
 export interface Particle {
   img: Phaser.GameObjects.Image;
+  /** Layer the image lives in (fixed for the particle's lifetime in the pool). */
+  layer: LayerName;
   life: number;
   maxLife: number;
   vx: number;
@@ -30,10 +32,11 @@ export interface Particle {
  */
 export class FxSystem {
   private readonly live: Particle[] = [];
-  private readonly free: Particle[] = [];
+  /** Free particles per layer, so a reused image never changes layer (no re-sorting). */
+  private readonly free = new Map<LayerName, Particle[]>();
   private quality: ParticleQuality = 'high';
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(private readonly scene: Phaser.Scene, private readonly layers: WorldLayers) {}
 
   /** Particle detail level. */
   setQuality(q: ParticleQuality): void {
@@ -59,11 +62,11 @@ export class FxSystem {
    * Show `texture` at (x, y) for `life` seconds. Returns null when the cap is reached and
    * `essential` is false.
    */
-  spawn(texture: string, x: number, y: number, life: number, depth: number = DEPTH.fx, essential = false): Particle | null {
+  spawn(texture: string, x: number, y: number, life: number, layer: LayerName = 'fx', essential = false): Particle | null {
     if (!essential && !this.hasRoom) return null;
-    const p = this.free.pop() ?? this.make();
+    const p = this.freeList(layer).pop() ?? this.make(layer);
     const img = p.img;
-    img.setTexture(texture).setPosition(x, y).setDepth(depth).setVisible(true).setActive(true);
+    img.setTexture(texture).setPosition(x, y).setVisible(true).setActive(true);
     img.setRotation(0).setAlpha(1).setScale(1).clearTint().setBlendMode(Phaser.BlendModes.NORMAL);
     p.life = life;
     p.maxLife = life;
@@ -112,13 +115,22 @@ export class FxSystem {
     const last = this.live.pop() as Particle;
     if (i < this.live.length) this.live[i] = last;
     p.img.setVisible(false).setActive(false);
-    this.free.push(p);
+    this.freeList(p.layer).push(p);
   }
 
-  private make(): Particle {
-    const img = this.scene.add.image(0, 0, '__DEFAULT').setVisible(false);
+  private freeList(layer: LayerName): Particle[] {
+    let list = this.free.get(layer);
+    if (!list) {
+      list = [];
+      this.free.set(layer, list);
+    }
+    return list;
+  }
+
+  private make(layer: LayerName): Particle {
+    const img = this.layers.put(layer, this.scene.add.image(0, 0, '__DEFAULT').setVisible(false));
     return {
-      img, life: 0, maxLife: 1, vx: 0, vy: 0, drag: 0, gravity: 0, spin: 0,
+      img, layer, life: 0, maxLife: 1, vx: 0, vy: 0, drag: 0, gravity: 0, spin: 0,
       scale0: 1, scale1: 1, alpha0: 1, alpha1: 0, hold: 0,
     };
   }

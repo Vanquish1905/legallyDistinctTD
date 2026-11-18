@@ -13,6 +13,7 @@ import { ProjectileViews } from './ProjectileViews';
 import { RANGE_OK, RangeIndicator } from './RangeIndicator';
 import { TowerViews, type Muzzle } from './TowerViews';
 import { DEPTH } from './layers';
+import { WorldLayers } from './WorldLayers';
 import type { ParticleQuality } from './quality';
 
 /** Towers whose direct hits are too frequent or already visualised for impact sparks. */
@@ -31,6 +32,8 @@ export interface RenderStats { enemies: number; towers: number; projectiles: num
 export class WorldRenderer {
   readonly effects: Effects;
   readonly ghost: PlacementGhost;
+  /** The map image (the scene frees its texture on shutdown). */
+  readonly background: Phaser.GameObjects.Image;
   private readonly enemies: EnemyViews;
   private readonly towers: TowerViews;
   private readonly projectiles: ProjectileViews;
@@ -46,16 +49,17 @@ export class WorldRenderer {
   private readonly enemyAt = (uid: number): EnemyState | null => this.enemies.state(uid);
 
   constructor(private readonly scene: Phaser.Scene, private readonly sim: GameSim) {
-    scene.add.image(0, 0, sim.map.background).setOrigin(0, 0).setDepth(DEPTH.map);
+    this.background = scene.add.image(0, 0, sim.map.background).setOrigin(0, 0).setDepth(DEPTH.map);
     makeVignette(scene);
     scene.add.image(0, 0, VIGNETTE_KEY).setOrigin(0, 0).setDisplaySize(FIELD_W, GAME_H)
       .setTint(0x05070c).setAlpha(0.55).setDepth(DEPTH.map + 1);
     this.hurt = scene.add.image(0, 0, VIGNETTE_KEY).setOrigin(0, 0).setDisplaySize(FIELD_W, GAME_H)
       .setTint(0xf43f5e).setAlpha(0).setDepth(DEPTH.ui - 1).setVisible(false);
-    this.effects = new Effects(scene);
-    this.enemies = new EnemyViews(scene, this.effects);
+    const layers = new WorldLayers(scene);
+    this.effects = new Effects(scene, layers);
+    this.enemies = new EnemyViews(scene, this.effects, layers);
     this.towers = new TowerViews(scene);
-    this.projectiles = new ProjectileViews(scene, this.effects);
+    this.projectiles = new ProjectileViews(scene, this.effects, layers);
     this.bars = new HealthBars(scene);
     this.selection = new RangeIndicator(scene);
     this.selRing = scene.add.graphics().setDepth(DEPTH.towerBase - 0.5).setVisible(false);
@@ -134,7 +138,7 @@ export class WorldRenderer {
         break;
       case 'towerPlaced':
         this.towers.placed(e.uid);
-        fx.ring(e.x, e.y, 70, 0x9be7ff, 0.4, DEPTH.decal + 2);
+        fx.ring(e.x, e.y, 70, 0x9be7ff, 0.4, 'ground');
         for (let i = 0; i < fx.fx.count(6); i++) fx.dust(e.x + Math.cos(i) * 26, e.y + Math.sin(i) * 26, 0xd8d2c0, 0.4);
         break;
       case 'towerUpgraded': {

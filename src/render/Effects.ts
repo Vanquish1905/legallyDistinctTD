@@ -3,6 +3,7 @@ import type { DamageType, Vec2 } from '../sim/types';
 import { FloatingText } from './FloatingText';
 import { FxSystem, look, move } from './FxSystem';
 import { DEPTH } from './layers';
+import type { LayerName, WorldLayers } from './WorldLayers';
 import type { ParticleQuality } from './quality';
 
 /** Goo colour of each creature's death splat. */
@@ -37,8 +38,8 @@ export class Effects {
   private readonly spareLines: Line[] = [];
   private dirty = false;
 
-  constructor(scene: Phaser.Scene) {
-    this.fx = new FxSystem(scene);
+  constructor(scene: Phaser.Scene, layers: WorldLayers) {
+    this.fx = new FxSystem(scene, layers);
     this.text = new FloatingText(scene);
     this.lines = scene.add.graphics().setDepth(DEPTH.beam).setBlendMode(Phaser.BlendModes.ADD);
   }
@@ -61,7 +62,7 @@ export class Effects {
     const fx = this.fx;
     const size = (radius * 2) / 128;
     if (type === 'ice') {
-      const p = fx.spawn('fx-frost-burst', x, y, 0.45, DEPTH.fx, true);
+      const p = fx.spawn('fx-frost-burst', x, y, 0.45, 'fx', true);
       if (p) {
         look(p, size * 0.35, size * 1.05, 0.95, 0.3);
         p.spin = 1.5;
@@ -70,7 +71,7 @@ export class Effects {
       return;
     }
     if (type === 'poison') {
-      const p = fx.spawn('fx-poison-cloud', x, y, 1.1, DEPTH.fx, true);
+      const p = fx.spawn('fx-poison-cloud', x, y, 1.1, 'fx', true);
       if (p) {
         look(p, size * 0.5, size * 1.15, 0.85, 0.35);
         p.spin = 0.4;
@@ -79,14 +80,14 @@ export class Effects {
       return;
     }
     if (type === 'energy') {
-      const p = fx.spawn('fx-ring', x, y, 0.35, DEPTH.fx, true);
+      const p = fx.spawn('fx-ring', x, y, 0.35, 'fx', true);
       if (p) {
         look(p, size * 0.15, size, 0.9);
         p.img.setTint(0x7dd3fc).setBlendMode(Phaser.BlendModes.ADD);
       }
       return;
     }
-    const p = fx.spawn('fx-explosion', x, y, 0.42, DEPTH.fx, true);
+    const p = fx.spawn('fx-explosion', x, y, 0.42, 'fx', true);
     if (p) {
       look(p, size * 0.3, size * 1.1, 1, 0.25);
       p.spin = 0.6;
@@ -115,7 +116,7 @@ export class Effects {
   death(x: number, y: number, enemyId: string, radius: number, reward: number, boss: boolean): void {
     const tint = SPLAT_TINT[enemyId] ?? 0x9ad65c;
     const s = (radius * 2.4) / 96;
-    const splat = this.fx.spawn('fx-splat', x, y, boss ? 3 : 1.8, DEPTH.decal, true);
+    const splat = this.fx.spawn('fx-splat', x, y, boss ? 3 : 1.8, 'decal', true);
     if (splat) {
       look(splat, s * 0.5, s, 0.85, 0.55);
       splat.img.setTint(tint).setRotation(Math.random() * 6.28);
@@ -140,7 +141,7 @@ export class Effects {
   /** Coin sprites jumping out of (x, y) plus a "+N" label. */
   coins(x: number, y: number, amount: number, count = 1): void {
     for (let i = 0; i < count; i++) {
-      const p = this.fx.spawn('fx-coin', x, y - 6, 0.7, DEPTH.fx + 1);
+      const p = this.fx.spawn('fx-coin', x, y - 6, 0.7, 'fxTop');
       if (!p) break;
       look(p, 0.55, 0.45, 1, 0.6);
       move(p, (Math.random() - 0.5) * (count > 1 ? 220 : 50), -170 - Math.random() * 60, 0, 520);
@@ -162,7 +163,7 @@ export class Effects {
 
   /** Tiny dust puff (burrowers, placement, enemy footsteps). */
   dust(x: number, y: number, tint = 0xb08d62, scale = 0.32): void {
-    const p = this.fx.spawn('fx-smoke', x + (Math.random() - 0.5) * 16, y + (Math.random() - 0.5) * 16, 0.5, DEPTH.decal + 1);
+    const p = this.fx.spawn('fx-smoke', x + (Math.random() - 0.5) * 16, y + (Math.random() - 0.5) * 16, 0.5, 'ground');
     if (!p) return;
     look(p, scale * 0.6, scale * 1.3, 0.6);
     move(p, 0, -12);
@@ -183,8 +184,8 @@ export class Effects {
   }
 
   /** Expanding ring (placement, upgrade, boss phase, heal pulses). */
-  ring(x: number, y: number, radius: number, tint: number, life = 0.45, depth: number = DEPTH.fx): void {
-    const p = this.fx.spawn('fx-ring', x, y, life, depth, true);
+  ring(x: number, y: number, radius: number, tint: number, life = 0.45, layer: LayerName = 'fx'): void {
+    const p = this.fx.spawn('fx-ring', x, y, life, layer, true);
     if (!p) return;
     look(p, (radius * 0.4) / 64, radius / 64, 0.85);
     p.img.setTint(tint).setBlendMode(Phaser.BlendModes.ADD);
@@ -192,7 +193,7 @@ export class Effects {
 
   /** Green heal motes rising around (x, y). */
   heal(x: number, y: number, radius: number): void {
-    this.ring(x, y, radius, 0x34d399, 0.6, DEPTH.decal + 2);
+    this.ring(x, y, radius, 0x34d399, 0.6, 'ground');
     const n = this.fx.count(5);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;

@@ -3,7 +3,7 @@ import type { EnemyState } from '../sim/EnemyState';
 import type { Effects } from './Effects';
 import type { HealthBars } from './HealthBars';
 import { KeyedViews, type KeyedView } from './Pool';
-import { DEPTH, Y_SORT } from './layers';
+import type { WorldLayers } from './WorldLayers';
 import { smoothAngle } from './math';
 import { enemyScale } from './sizes';
 
@@ -16,6 +16,11 @@ const TURN_RATE = 10;
 const STEALTH_ALPHA = 0.32;
 const SUBMERGED_ALPHA = 0.3;
 const DUST_INTERVAL = 0.12;
+
+/** Enemies re-sort when they move this many px vertically. */
+const Y_STEP = 6;
+/** Bosses draw above every regular enemy in their layer. */
+const BOSS_DEPTH = 100000;
 
 const TINT_NONE = 0xffffff;
 const TINT_SLOW = 0x9fdcff;
@@ -38,6 +43,8 @@ interface EnemyView extends KeyedView {
   tint: number;
   phaseFlash: number;
   dust: number;
+  /** Depth (coarse y) last set on the body; NaN forces an update. */
+  depthKey: number;
   bob: number;
 }
 
@@ -46,7 +53,11 @@ export class EnemyViews {
   private readonly views: KeyedViews<EnemyView>;
   private time = 0;
 
-  constructor(private readonly scene: Phaser.Scene, private readonly effects: Effects) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly effects: Effects,
+    private readonly layers: WorldLayers,
+  ) {
     this.views = new KeyedViews<EnemyView>(
       () => this.make(),
       (v) => {
@@ -117,7 +128,18 @@ export class EnemyViews {
     } else {
       v.shadow.setVisible(false);
     }
+    const layer = e.flying ? 'flying' : 'enemy';
+    this.layers.put(layer, v.body);
+    if (v.shield) this.layers.put(layer, v.shield);
+    v.depthKey = NaN;
     v.shield?.setVisible(false);
+  }
+
+  /** The shield bubble shares the body's layer and sits just above it. */
+  private makeShield(v: EnemyView, e: EnemyState): Phaser.GameObjects.Image {
+    const s = this.layers.put(e.flying ? 'flying' : 'enemy', this.scene.add.image(0, 0, 'fx-shield'));
+    s.setDepth(v.body.depth + 0.5);
+    return s;
   }
 
   private animate(v: EnemyView, e: EnemyState, dt: number, bars: HealthBars): void {
@@ -137,7 +159,13 @@ export class EnemyViews {
     body.setScale(scale * (1 + wobble), scale * (1 - wobble));
     body.setRotation(v.angle + (e.flying ? Math.sin(v.bob * 0.5) * 0.08 : 0));
     body.setPosition(e.x, e.y);
-    body.setDepth((e.flying ? DEPTH.flying : DEPTH.enemy) + (e.isBoss ? 0.5 : 0) + e.y * Y_SORT);
+    // Coarse y-sort inside the enemy layer: depth only changes every Y_STEP px of movement.
+    const depthKey = (e.isBoss ? BOSS_DEPTH : 0) + Math.round(e.y / Y_STEP);
+    if (depthKey !== v.depthKey) {
+      v.depthKey = depthKey;
+      body.setDepth(depthKey);
+      v.shield?.setDepth(depthKey + 0.5);
+    }
 
     let alpha = Math.min(1, v.age / FADE_IN);
     if (e.burrowed) alpha *= SUBMERGED_ALPHA;
@@ -152,18 +180,16 @@ export class EnemyViews {
         .setPosition(e.x + lift * 0.35, e.y + lift * 0.7)
         .setRotation(v.angle)
         .setScale(v.baseScale * 0.9)
-        .setAlpha(0.28 * alpha)
-        .setDepth(DEPTH.flyingShadow);
+        .setAlpha(0.28 * alpha);
     }
 
     if (e.shield > 0) {
-      const s = v.shield ?? (v.shield = this.scene.add.image(0, 0, 'fx-shield').setDepth(DEPTH.enemy + 0.9));
+      const s = v.shield ?? (v.shield = this.makeShield(v, e));
       const sf = e.maxShield > 0 ? Math.min(1, e.shield / e.maxShield) : 1;
       s.setVisible(true)
         .setPosition(e.x, e.y)
         .setScale(((e.radius * 2.4) / 128) * (1 + 0.04 * Math.sin(this.time * 5)))
-        .setAlpha((0.25 + 0.4 * sf) * alpha)
-        .setDepth(body.depth + 0.001);
+        .setAlpha((0.25 + 0.4 * sf) * alpha);
     } else if (v.shield?.visible) {
       v.shield.setVisible(false);
     }
@@ -205,8 +231,8 @@ export class EnemyViews {
       uid: 0,
       seen: 0,
       state: null,
-      body: scene.add.image(0, 0, 'enemy-larva').setVisible(false),
-      shadow: scene.add.image(0, 0, 'enemy-larva').setVisible(false),
+      body: this.layers.put('enemy', scene.add.image(0, 0, 'enemy-larva').setVisible(false)),
+      shadow: this.layers.put('flyingShadow', scene.add.image(0, 0, 'enemy-larva').setVisible(false)),
       shield: null,
       baseScale: 1,
       angle: 0,
@@ -215,6 +241,7 @@ export class EnemyViews {
       tint: TINT_NONE,
       phaseFlash: 0,
       dust: 0,
+      depthKey: NaN,
       bob: 0,
     };
   }
