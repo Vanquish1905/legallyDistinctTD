@@ -4,6 +4,7 @@ import { SPRITE_ART, artEntries, loadArt } from '../data/loadArt';
 import { getMap } from '../data/maps';
 import { DIFFICULTY_ORDER } from '../data/difficulty';
 import type { GameSceneData } from './GameScene';
+import { debugEnabled } from './game/debugApi';
 
 const BAR_W = 720;
 const BAR_H = 18;
@@ -114,7 +115,7 @@ function startData(): GameSceneData {
   const mapId = q.get('map') ?? 'green-valley';
   const diff = q.get('difficulty');
   const difficulty = DIFFICULTY_ORDER.find((d) => d === diff) ?? 'normal';
-  const stress = Number(q.get('stress') ?? 0);
+  const stress = debugEnabled() ? Number(q.get('stress') ?? 0) : 0;
   return {
     mapId: getMap(mapId) ? mapId : 'green-valley',
     difficulty,

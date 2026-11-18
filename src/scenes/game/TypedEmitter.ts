@@ -1,11 +1,14 @@
-/** Minimal typed event emitter (no Phaser dependency, safe to unit test). */
+/**
+ * Minimal typed event emitter (no Phaser dependency, safe to unit test). Handler lists are
+ * copy-on-write: subscribing or unsubscribing during an emit never skips or repeats a handler
+ * of that emit, and emitting itself does not allocate.
+ */
 export class TypedEmitter<Events extends object> {
   private readonly handlers: { [K in keyof Events]?: ((payload: Events[K]) => void)[] } = {};
 
   /** Subscribe; returns a function that unsubscribes. */
   on<K extends keyof Events>(name: K, fn: (payload: Events[K]) => void): () => void {
-    const list = this.handlers[name] ?? (this.handlers[name] = []);
-    list.push(fn);
+    this.handlers[name] = [...(this.handlers[name] ?? []), fn];
     return () => this.off(name, fn);
   }
 
@@ -14,7 +17,7 @@ export class TypedEmitter<Events extends object> {
     const list = this.handlers[name];
     if (!list) return;
     const i = list.indexOf(fn);
-    if (i >= 0) list.splice(i, 1);
+    if (i >= 0) this.handlers[name] = list.filter((_, j) => j !== i);
   }
 
   /** Call every handler of `name` with `payload`. */

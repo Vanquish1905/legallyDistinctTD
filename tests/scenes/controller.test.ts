@@ -136,3 +136,25 @@ describe('GameController heli', () => {
     expect(names().at(-1)).toBe('towerChanged');
   });
 });
+
+describe('GameController event pumping', () => {
+  it('keeps later events of the same batch after a nested command', () => {
+    const { c, sim } = setup(5000);
+    const seen: string[] = [];
+    let started = false;
+    c.events.on('sim', (e) => {
+      seen.push(e.type);
+      // A command inside a handler re-enters pump(); the rest of this batch must survive.
+      if (e.type === 'towerPlaced' && !started) {
+        started = true;
+        c.startNextWave();
+      }
+    });
+    // Two placements queued in one batch, then pumped together.
+    sim.placeTower('blaster', 400, 330);
+    sim.placeTower('blaster', 620, 330);
+    c.pump();
+    expect(seen.filter((t) => t === 'towerPlaced')).toHaveLength(2);
+    expect(seen).toContain('waveStart');
+  });
+});

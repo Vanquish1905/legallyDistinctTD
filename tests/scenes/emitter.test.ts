@@ -24,3 +24,24 @@ describe('TypedEmitter', () => {
     expect(fn).not.toHaveBeenCalled();
   });
 });
+
+describe('TypedEmitter during emit', () => {
+  it('a handler removing itself does not skip the next handler', () => {
+    const em = new TypedEmitter<{ ping: number }>();
+    const calls: string[] = [];
+    const off = em.on('ping', () => { calls.push('a'); off(); });
+    em.on('ping', () => calls.push('b'));
+    em.emit('ping', 1);
+    em.emit('ping', 2);
+    expect(calls).toEqual(['a', 'b', 'b']);
+  });
+
+  it('a handler added during emit runs from the next emit on', () => {
+    const em = new TypedEmitter<{ ping: number }>();
+    const calls: string[] = [];
+    em.on('ping', () => { calls.push('a'); if (calls.length === 1) em.on('ping', () => calls.push('late')); });
+    em.emit('ping', 1);
+    em.emit('ping', 2);
+    expect(calls).toEqual(['a', 'a', 'late']);
+  });
+});

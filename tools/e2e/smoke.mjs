@@ -64,7 +64,7 @@ try {
     if (r.status() >= 400 && !isFontHost(r.url())) errors.push(`http ${r.status()}: ${r.url()}`);
   });
   // Easy gives enough start money for four towers.
-  await page.goto(`${url}?difficulty=easy`);
+  await page.goto(`${url}?e2e&difficulty=easy`);
   await page.waitForFunction(() => window.__LDTD__?.ready === true, null, { timeout: 30000 });
   await page.waitForTimeout(500);
   mkdirSync('test-results', { recursive: true });
@@ -88,6 +88,11 @@ try {
 
   const moneyBefore = await page.evaluate(() => window.__LDTD__.sim.money);
   await page.evaluate(() => {
+    // Count kills: the wave-clear bonus alone would also raise money.
+    window.__kills = 0;
+    window.__LDTD__.controller.events.on('sim', (e) => {
+      if (e.type === 'enemyKilled') window.__kills++;
+    });
     window.__LDTD__.setSpeed(3);
     window.__LDTD__.startWave();
   });
@@ -101,14 +106,32 @@ try {
     wave: window.__LDTD__.sim.wave,
     phase: window.__LDTD__.sim.phase,
     stats: window.__LDTD__.stats(),
+    kills: window.__kills,
   }));
-  console.log(`gameplay: money ${moneyBefore} -> ${after.money}, wave ${after.wave} (${after.phase}), stats ${JSON.stringify(after.stats)}`);
-  if (!(after.money > moneyBefore)) throw new Error('no enemies were killed (money did not increase)');
+  console.log(`gameplay: ${after.kills} kills, money ${moneyBefore} -> ${after.money}, wave ${after.wave} (${after.phase}), stats ${JSON.stringify(after.stats)}`);
+  if (!(after.kills > 0)) throw new Error('no enemies were killed');
+  if (!(after.money > moneyBefore)) throw new Error('money did not increase');
+
+  // Restart on another map, then the same one: teardown frees the old map texture and reloads.
+  for (const mapId of ['dune-canyon', 'dune-canyon']) {
+    await page.evaluate((id) => window.__LDTD__.restart(id), mapId);
+    await page.waitForFunction((id) => window.__LDTD__?.ready === true && window.__LDTD__.sim.map.id === id, mapId, { timeout: 30000 });
+  }
+  const restarted = await page.evaluate(() => window.__LDTD__.sim.towers.length);
+  if (restarted !== 0) throw new Error(`restart kept ${restarted} towers`);
+
+  // Production players get no debug hooks.
+  const plain = await browser.newPage({ viewport: { width: 800, height: 450 } });
+  plain.on('pageerror', (e) => errors.push(`plain pageerror: ${e.message}`));
+  await plain.goto(`${url}?stress=300`);
+  await plain.waitForTimeout(4000);
+  if (await plain.evaluate(() => window.__LDTD__ !== undefined)) errors.push('debug API exposed without ?e2e');
+  await plain.close();
 
   // Touch (phone): pick a tower, then tap the field to place it.
   const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
   phone.on('pageerror', (e) => errors.push(`phone pageerror: ${e.message}`));
-  await phone.goto(`${url}?difficulty=easy`);
+  await phone.goto(`${url}?e2e&difficulty=easy`);
   await phone.waitForFunction(() => window.__LDTD__?.ready === true, null, { timeout: 30000 });
   const pbox = await phone.locator('canvas').boundingBox();
   await phone.evaluate(() => window.__LDTD__.controller.beginPlacement('frost'));

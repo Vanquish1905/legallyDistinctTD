@@ -25,6 +25,8 @@ export interface DebugApi {
   startWave(): void;
   setSpeed(speed: number): void;
   stats(): DebugStats;
+  /** Restart the game scene (same map unless `mapId` is given); exercises teardown. */
+  restart(mapId?: string): void;
 }
 
 declare global {
@@ -33,8 +35,18 @@ declare global {
   }
 }
 
+/**
+ * Debug hooks (`window.__LDTD__`, `?stress=N`) are on in dev builds and when the page URL has
+ * `?e2e` (the smoke test); production players never get them.
+ */
+export function debugEnabled(): boolean {
+  return import.meta.env.DEV || new URLSearchParams(window.location.search).has('e2e');
+}
+
 /** Install the debug hooks for a running game. */
-export function installDebugApi(c: GameController, stats: () => DebugStats): DebugApi {
+export function installDebugApi(
+  c: GameController, stats: () => DebugStats, restart: (mapId?: string) => void,
+): DebugApi {
   const api: DebugApi = {
     ready: false,
     scene: 'game',
@@ -44,6 +56,7 @@ export function installDebugApi(c: GameController, stats: () => DebugStats): Deb
     startWave: () => c.startNextWave(),
     setSpeed: (speed) => c.setSpeed(Math.min(3, Math.max(1, Math.round(speed))) as GameSpeed),
     stats,
+    restart,
   };
   window.__LDTD__ = api;
   return api;

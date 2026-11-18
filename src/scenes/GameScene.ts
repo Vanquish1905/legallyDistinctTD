@@ -11,7 +11,7 @@ import { GameController, MAX_FRAME_DT } from './game/GameController';
 import { GameInput } from './game/GameInput';
 import { GameHotkeys } from './game/GameHotkeys';
 import { DevOverlay } from './game/DevOverlay';
-import { installDebugApi, type DebugApi } from './game/debugApi';
+import { debugEnabled, installDebugApi, type DebugApi } from './game/debugApi';
 import { stressWaves } from './game/stress';
 
 /** What a game is started with. */
@@ -36,7 +36,7 @@ export class GameScene extends Phaser.Scene {
   private world!: WorldRenderer;
   private gameInput!: GameInput;
   private hotkeys!: GameHotkeys;
-  private debug!: DebugApi;
+  private debug: DebugApi | null = null;
   private params: GameSceneData = DEFAULT_DATA;
   /** Smoothed CPU time of `update` (sim + view sync), excluding WebGL drawing. */
   private updateMs = 0;
@@ -58,7 +58,8 @@ export class GameScene extends Phaser.Scene {
     const map = this.resolveMap();
     const difficulty = DIFFICULTIES[this.params.difficulty] ?? DIFFICULTIES.normal;
     const save = this.params.save;
-    const stress = this.params.stress ?? 0;
+    const debug = debugEnabled();
+    const stress = debug ? (this.params.stress ?? 0) : 0;
     const sim = new GameSim({
       map,
       difficulty,
@@ -75,11 +76,13 @@ export class GameScene extends Phaser.Scene {
     this.gameInput = new GameInput(this, c, this.world);
     this.hotkeys = new GameHotkeys(this.input.keyboard, c);
     new DevOverlay(this, c);
-    this.debug = installDebugApi(c, () => ({
-      fps: Math.round(this.game.loop.actualFps),
-      updateMs: Math.round(this.updateMs * 100) / 100,
-      ...this.world.stats(),
-    }));
+    this.debug = debug
+      ? installDebugApi(c, () => ({
+        fps: Math.round(this.game.loop.actualFps),
+        updateMs: Math.round(this.updateMs * 100) / 100,
+        ...this.world.stats(),
+      }), (mapId) => this.scene.restart({ ...this.params, ...(mapId ? { mapId } : {}) }))
+      : null;
     this.cameras.main.fadeIn(350, 13, 17, 23);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardown());
   }
@@ -95,7 +98,7 @@ export class GameScene extends Phaser.Scene {
     this.gameInput.update();
     this.world.update(gameDt, dt, c.selectedTower());
     this.updateMs += (performance.now() - t0 - this.updateMs) * 0.05;
-    if (!this.debug.ready) this.debug.ready = true;
+    if (this.debug && !this.debug.ready) this.debug.ready = true;
   }
 
   /** Particle detail level (for the settings screen). */
@@ -113,6 +116,12 @@ export class GameScene extends Phaser.Scene {
     this.gameInput.destroy();
     this.hotkeys.destroy();
     this.controller.destroy();
-    if (window.__LDTD__ === this.debug) delete window.__LDTD__;
+    if (this.debug && window.__LDTD__ === this.debug) delete window.__LDTD__;
+    this.debug = null;
+    // A 1540×1080 map is several MB of GPU memory: free it so maps never stack up on phones.
+    // Restarting the same map reloads it from the browser cache.
+    const key = this.world.background.texture.key;
+    this.world.background.destroy();
+    this.textures.remove(key);
   }
 }

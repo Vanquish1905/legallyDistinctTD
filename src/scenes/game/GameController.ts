@@ -65,6 +65,7 @@ export class GameController {
   private _selected: number | null = null;
   private _pending: string | null = null;
   private lastPhase: SimPhase;
+  private pumping = false;
   private lastWave: number;
   private readonly snapScratch: Vec2 = { x: 0, y: 0 };
 
@@ -280,8 +281,18 @@ export class GameController {
 
   /** Drain the sim's events and emit them (called by `update` and after every command). */
   pump(): void {
-    const list = this.sim.events.drain();
-    for (let i = 0; i < list.length; i++) this.dispatch(list[i] as SimEvent);
+    // Handlers may call commands that pump again; the outer call keeps draining instead, so the
+    // array being iterated is never invalidated by a nested drain and no event is dropped.
+    if (this.pumping) return;
+    this.pumping = true;
+    try {
+      while (this.sim.events.size > 0) {
+        const list = this.sim.events.drain();
+        for (let i = 0; i < list.length; i++) this.dispatch(list[i] as SimEvent);
+      }
+    } finally {
+      this.pumping = false;
+    }
     const sim = this.sim;
     if (sim.phase !== this.lastPhase || sim.wave !== this.lastWave) {
       this.lastPhase = sim.phase;

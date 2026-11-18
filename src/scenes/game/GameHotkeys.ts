@@ -2,6 +2,9 @@ import type Phaser from 'phaser';
 import { TOWER_ORDER } from '../../data/towers';
 import type { GameController } from './GameController';
 
+/** Keys whose browser default (scroll, focus change) is suppressed while playing. */
+const CAPTURED = 'TAB,SPACE';
+
 /** Keys 1..9, 0 pick the first ten towers of the shop order. */
 const DIGITS = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'ZERO'] as const;
 
@@ -25,11 +28,13 @@ export class GameHotkeys {
     this.bind('F', () => c.cycleSpeed());
     this.bind('P', () => c.togglePause());
     this.bind('TAB', () => this.withSelected((uid) => c.cycleTargetMode(uid)));
-    keyboard?.addCapture('TAB,SPACE');
+    keyboard?.addCapture(CAPTURED);
   }
 
   destroy(): void {
     for (const [name, fn] of this.bindings) this.keyboard?.off(`keydown-${name}`, fn);
+    // Captures live on the global KeyboardManager; release them so Space/Tab work in other scenes.
+    this.keyboard?.removeCapture(CAPTURED);
     this.bindings.length = 0;
   }
 
