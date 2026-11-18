@@ -1,26 +1,27 @@
 import Phaser from 'phaser';
-import { COLORS, FIELD_W, FONT_FAMILY, GAME_H, GAME_W } from '../config';
+import { COLORS, COLORS_NUM, FONT_FAMILY, GAME_H, GAME_W } from '../config';
 import { SPRITE_ART, artEntries, loadArt } from '../data/loadArt';
-import { MAPS } from '../data/maps';
-import { TOWER_ORDER_PREVIEW, ENEMY_PREVIEW } from './bootPreview';
+import { getMap } from '../data/maps';
+import { DIFFICULTY_ORDER } from '../data/difficulty';
+import type { GameSceneData } from './GameScene';
 
-declare global {
-  interface Window {
-    /** Test hook: set once the first scene has finished creating. */
-    __LDTD__?: { ready: boolean; textures?: number };
-  }
-}
+const BAR_W = 720;
+const BAR_H = 18;
+const FONT_WAIT_MS = 1200;
 
-const PREVIEW_MAP = (() => {
-  const map = MAPS.find((m) => m.id === 'green-valley') ?? MAPS[0];
-  if (!map) throw new Error('No maps defined');
-  return map;
-})();
+const STATUS = [
+  'Oiling the turrets',
+  'Counting larvae',
+  'Calibrating the railgun',
+  'Untangling tesla coils',
+  'Bribing the helicopter pilot',
+  'Polishing spikes',
+];
 
 /**
- * Loads every generated sprite texture with a branded progress bar, then shows a
- * preview of the new art: a map background, parasites marching along its path
- * and the tower line-up. The playable scenes plug in after this one.
+ * Branded loader: shows the logo and a progress bar while every sprite texture (and the first
+ * map) loads, then fades into the game. Query parameters `map`, `difficulty` and `stress`
+ * choose what to start (until the main menu exists).
  */
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -28,85 +29,102 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
-    const barW = 640;
-    const x = (GAME_W - barW) / 2;
-    const y = GAME_H / 2 + 60;
-    this.add
-      .text(GAME_W / 2, GAME_H / 2 - 40, 'LegallyDistinctTD', {
-        fontFamily: FONT_FAMILY,
-        fontSize: '72px',
-        fontStyle: 'bold',
-        color: COLORS.accent,
-      })
-      .setOrigin(0.5);
-    this.add.rectangle(x, y, barW, 14, 0x121826).setOrigin(0, 0.5).setStrokeStyle(1, 0x2f3b55);
-    const fill = this.add.rectangle(x + 2, y, 0, 10, 0x38bdf8).setOrigin(0, 0.5);
-    this.load.on('progress', (p: number) => fill.setSize((barW - 4) * p, 10));
-
-    loadArt(this.load, this.textures, [...SPRITE_ART, ...artEntries([PREVIEW_MAP.background])]);
+    loadArt(this.load, this.textures, artEntries(['logo']));
   }
 
   create(): void {
-    this.children.removeAll(true);
-    const map = PREVIEW_MAP;
+    const start = startData();
+    const cx = GAME_W / 2;
+    const cy = GAME_H / 2;
+    this.drawBackdrop();
+    const logo = this.add.image(cx, cy - 110, 'logo').setScale(0.82).setAlpha(0);
+    this.tweens.add({ targets: logo, alpha: 1, y: cy - 130, duration: 600, ease: 'Cubic.easeOut' });
 
-    this.add.image(0, 0, map.background).setOrigin(0, 0);
-    this.add.rectangle(FIELD_W, 0, GAME_W - FIELD_W, GAME_H, 0x0d1117).setOrigin(0, 0);
+    const barY = cy + 150;
+    const frame = this.add.graphics();
+    frame.fillStyle(COLORS_NUM.panel, 0.92).fillRoundedRect(cx - BAR_W / 2 - 6, barY - BAR_H / 2 - 6, BAR_W + 12, BAR_H + 12, 14);
+    frame.lineStyle(1, COLORS_NUM.panelBorder, 1).strokeRoundedRect(cx - BAR_W / 2 - 6, barY - BAR_H / 2 - 6, BAR_W + 12, BAR_H + 12, 14);
+    const fill = this.add.graphics();
+    const drawFill = (p: number): void => {
+      const w = Math.max(BAR_H, BAR_W * p);
+      fill.clear();
+      fill.fillStyle(COLORS_NUM.accent, 0.25).fillRoundedRect(cx - BAR_W / 2 - 2, barY - BAR_H / 2 - 2, w + 4, BAR_H + 4, 10);
+      fill.fillStyle(COLORS_NUM.accent, 1).fillRoundedRect(cx - BAR_W / 2, barY - BAR_H / 2, w, BAR_H, 9);
+      fill.fillStyle(0xffffff, 0.3).fillRoundedRect(cx - BAR_W / 2 + 4, barY - BAR_H / 2 + 3, Math.max(0, w - 8), 4, 2);
+    };
+    drawFill(0);
 
-    this.marchParasites(map.paths[0] ?? []);
-    this.showTowerLineup();
-
-    this.add.image(FIELD_W / 2, 190, 'logo').setScale(0.55);
-    this.add
-      .text(FIELD_W / 2, GAME_H - 48, 'New engine under construction: the full game is coming together', {
-        fontFamily: FONT_FAMILY,
-        fontSize: '28px',
-        color: '#e2e8f0',
-        backgroundColor: '#121826dd',
-        padding: { x: 18, y: 10 },
-      })
+    const status = this.add
+      .text(cx, barY + 46, '', { fontFamily: FONT_FAMILY, fontSize: '26px', color: COLORS.textDim })
       .setOrigin(0.5);
+    const pct = this.add
+      .text(cx + BAR_W / 2, barY - 34, '0%', { fontFamily: FONT_FAMILY, fontSize: '24px', fontStyle: 'bold', color: COLORS.accent })
+      .setOrigin(1, 0.5);
+    let progress = 0;
+    const setStatus = (): void => {
+      const line = STATUS[Math.min(STATUS.length - 1, Math.floor(progress * STATUS.length))] ?? '';
+      status.setText(`${line}...`);
+    };
+    setStatus();
 
-    window.__LDTD__ = { ready: true, textures: SPRITE_ART.length + 1 };
-  }
-
-  /** Sends a looping parade of enemies along the path polyline. */
-  private marchParasites(path: ReadonlyArray<{ x: number; y: number }>): void {
-    if (path.length < 2) return;
-    const curve = new Phaser.Curves.Path(path[0]!.x, path[0]!.y);
-    for (let i = 1; i < path.length; i++) curve.lineTo(path[i]!.x, path[i]!.y);
-    const length = curve.getLength();
-
-    ENEMY_PREVIEW.forEach((key, i) => {
-      const sprite = this.add.image(0, 0, key).setScale(0.7);
-      const state = { t: 0 };
-      this.tweens.add({
-        targets: state,
-        t: 1,
-        duration: (length / 90) * 1000,
-        delay: i * 900,
-        repeat: -1,
-        onUpdate: () => {
-          const p = curve.getPoint(state.t);
-          const ahead = curve.getPoint(Math.min(1, state.t + 0.002));
-          sprite.setPosition(p.x, p.y);
-          sprite.setRotation(Phaser.Math.Angle.Between(p.x, p.y, ahead.x, ahead.y));
-        },
-      });
+    const map = getMap(start.mapId);
+    loadArt(this.load, this.textures, [...SPRITE_ART, ...(map ? artEntries([map.background]) : [])]);
+    this.load.on(Phaser.Loader.Events.PROGRESS, (p: number) => {
+      progress = p;
+      drawFill(p);
+      pct.setText(`${Math.round(p * 100)}%`);
+      setStatus();
     });
+    let loaded = false;
+    let fontsReady = false;
+    const proceed = (): void => {
+      if (!loaded || !fontsReady) return;
+      this.cameras.main.fadeOut(300, 13, 17, 23);
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('GameScene', start));
+    };
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      loaded = true;
+      drawFill(1);
+      pct.setText('100%');
+      status.setText('Ready');
+      proceed();
+    });
+    waitForFonts().then(() => {
+      fontsReady = true;
+      // Re-render the texts now that Rubik is (probably) available.
+      status.style.update(true);
+      pct.style.update(true);
+      proceed();
+    });
+    this.load.start();
   }
 
-  /** Lists every tower (base + turret) in the sidebar area. */
-  private showTowerLineup(): void {
-    const cols = 3;
-    const cell = 118;
-    const x0 = FIELD_W + (GAME_W - FIELD_W - cols * cell) / 2 + cell / 2;
-    TOWER_ORDER_PREVIEW.forEach((id, i) => {
-      const x = x0 + (i % cols) * cell;
-      const y = 80 + Math.floor(i / cols) * cell;
-      this.add.image(x, y, `tower-${id}-base`).setScale(0.75);
-      const turret = this.add.image(x, y, `tower-${id}-turret`).setScale(0.75);
-      this.tweens.add({ targets: turret, angle: 360, duration: 6000 + i * 250, repeat: -1 });
-    });
+  private drawBackdrop(): void {
+    const g = this.add.graphics();
+    g.fillGradientStyle(0x111a2c, 0x111a2c, 0x0d1117, 0x0d1117, 1).fillRect(0, 0, GAME_W, GAME_H);
+    g.lineStyle(1, 0x1c2638, 0.6);
+    for (let x = 0; x <= GAME_W; x += 64) g.lineBetween(x, 0, x, GAME_H);
+    for (let y = 0; y <= GAME_H; y += 64) g.lineBetween(0, y, GAME_W, y);
   }
+}
+
+/** Game start parameters from the page URL (defaults: Green Valley on Normal). */
+function startData(): GameSceneData {
+  const q = new URLSearchParams(window.location.search);
+  const mapId = q.get('map') ?? 'green-valley';
+  const diff = q.get('difficulty');
+  const difficulty = DIFFICULTY_ORDER.find((d) => d === diff) ?? 'normal';
+  const stress = Number(q.get('stress') ?? 0);
+  return {
+    mapId: getMap(mapId) ? mapId : 'green-valley',
+    difficulty,
+    ...(stress > 0 ? { stress: Math.min(1000, Math.floor(stress)) } : {}),
+  };
+}
+
+/** Resolve when the UI font is ready or after a short timeout (offline, blocked fonts). */
+function waitForFonts(): Promise<void> {
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, FONT_WAIT_MS));
+  const fonts = document.fonts?.load(`700 32px Rubik`).then(() => undefined, () => undefined) ?? Promise.resolve();
+  return Promise.race([fonts, timeout]);
 }
