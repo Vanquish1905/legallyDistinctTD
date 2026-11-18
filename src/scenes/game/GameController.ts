@@ -21,7 +21,7 @@ const PATH_SNAP_MARGIN = 40;
 const PICK_SLOP = 8;
 
 /** What changed about a tower in a `towerChanged` event. */
-export type TowerChange = 'placed' | 'upgraded' | 'sold' | 'expired' | 'targetMode';
+export type TowerChange = 'placed' | 'upgraded' | 'sold' | 'expired' | 'targetMode' | 'patrol';
 
 /** Events the controller emits for the HUD and the renderer. */
 export interface GameEvents {
@@ -40,7 +40,7 @@ export interface GameEvents {
   speedChanged: { speed: GameSpeed };
   pauseChanged: { paused: boolean };
   autoStartChanged: { autoStart: boolean };
-  bossSpawned: { uid: number; enemyId: string; name: string };
+  bossSpawned: { uid: number; enemyId: string; name: string; maxHp: number };
   bossPhase: { uid: number; enemyId: string; phase: number; name: string };
   /** The game ended. */
   gameOver: { won: boolean; wave: number };
@@ -90,9 +90,7 @@ export class GameController {
 
   /** Live state of a placed tower. */
   towerByUid(uid: number): TowerState | undefined {
-    const towers = this.sim.towers;
-    for (let i = 0; i < towers.length; i++) if ((towers[i] as TowerState).uid === uid) return towers[i];
-    return undefined;
+    return this.sim.getTower(uid);
   }
 
   /** The tower under field point (x, y), if any. */
@@ -207,6 +205,13 @@ export class GameController {
     return refund;
   }
 
+  /** Send a Heli Pad's helicopter to guard `point` (null = back to its pad). False when not allowed. */
+  setHeliTarget(uid: number, point: Vec2 | null): boolean {
+    const ok = this.sim.setHeliTarget(uid, point);
+    if (ok) this.events.emit('towerChanged', { uid, change: 'patrol' });
+    return ok;
+  }
+
   /** Change a tower's target mode. */
   setTargetMode(uid: number, mode: TargetMode): void {
     const t = this.towerByUid(uid);
@@ -313,7 +318,7 @@ export class GameController {
         ev.emit('towerChanged', { uid: e.uid, change: e.type === 'towerSold' ? 'sold' : 'expired' });
         break;
       case 'bossSpawn':
-        ev.emit('bossSpawned', { uid: e.uid, enemyId: e.enemyId, name: e.name });
+        ev.emit('bossSpawned', { uid: e.uid, enemyId: e.enemyId, name: e.name, maxHp: e.maxHp });
         break;
       case 'bossPhase':
         ev.emit('bossPhase', { uid: e.uid, enemyId: e.enemyId, phase: e.phase, name: e.name });

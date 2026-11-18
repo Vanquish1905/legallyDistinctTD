@@ -52,7 +52,7 @@ export class GameInput {
       return;
     }
     const check = this.controller.resolvePlacement(this.hover.x, this.hover.y, this.ghostPos);
-    const range = def.stats.buff?.radius ?? def.stats.range;
+    const range = def.stats.flight?.leash ?? def.stats.buff?.radius ?? def.stats.range;
     this.world.ghost.show(def, this.ghostPos.x, this.ghostPos.y, check.ok, range);
   }
 

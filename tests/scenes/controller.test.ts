@@ -124,3 +124,15 @@ describe('GameController flow', () => {
     expect(c.speed).toBe(1);
   });
 });
+
+describe('GameController heli', () => {
+  it('forwards patrol points to the sim and reports the change', () => {
+    const { c, names } = setup(5000);
+    const heli = c.placeTower('heli', 500, 140);
+    if (!heli) throw new Error('place failed');
+    expect(c.setHeliTarget(heli.uid, { x: 900, y: 700 })).toBe(true);
+    expect(heli.patrol).toEqual({ x: 900, y: 700 });
+    expect(c.setHeliTarget(heli.uid, { x: 9000, y: 700 })).toBe(false);
+    expect(names().at(-1)).toBe('towerChanged');
+  });
+});

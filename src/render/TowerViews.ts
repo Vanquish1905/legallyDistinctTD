@@ -25,9 +25,10 @@ const TURN_RATE = 16;
 const POP_TIME = 0.32;
 const ROTOR_SPEED = 26;
 const PIP_COLORS = [0x38bdf8, 0xfbbf24] as const;
-/** The helicopter is drawn this far above its ground point, and this much larger. */
-const HELI_LIFT = 26;
+/** The helicopter is drawn a bit larger than the pad scale; its shadow falls this far away. */
 const HELI_SCALE = 1.1;
+const HELI_SHADOW_X = 14;
+const HELI_SHADOW_Y = 24;
 
 /** Rendering of one placed tower. */
 interface TowerView extends KeyedView {
@@ -88,12 +89,12 @@ export class TowerViews {
   fired(uid: number, angle: number, out: Muzzle): Muzzle | null {
     const v = this.views.get(uid);
     if (!v || !v.state) return null;
-    if (v.mode === 'aim' || v.mode === 'heli') v.angle = angle;
+    if (v.mode === 'aim') v.angle = angle;
     v.recoil = 1;
     if (v.mode === 'trap' || v.mode === 'pulse') v.pop = Math.max(v.pop, POP_TIME * 0.45);
     const reach = v.mode === 'heli' ? 30 * v.scale : 50 * v.scale;
     const ox = v.mode === 'heli' ? v.hx : v.state.x;
-    const oy = v.mode === 'heli' ? v.hy - HELI_LIFT : v.state.y;
+    const oy = v.mode === 'heli' ? v.hy : v.state.y;
     out.x = ox + Math.cos(angle) * reach;
     out.y = oy + Math.sin(angle) * reach;
     if (v.mode === 'aim' || v.mode === 'heli') {
@@ -147,8 +148,9 @@ export class TowerViews {
     v.pop = 0;
     v.spinAngle = Math.random() * Math.PI * 2;
     v.tierKey = -1;
-    v.hx = t.x;
-    v.hy = t.y;
+    v.hx = t.unit ? t.unit.x : t.x;
+    v.hy = t.unit ? t.unit.y : t.y;
+    if (t.unit) v.angle = t.unit.angle;
     v.t = Math.random() * 10;
     const trap = t.def.placement === 'path';
     const depth = (trap ? DEPTH.trap : DEPTH.towerBase) + t.y * Y_SORT;
@@ -214,7 +216,7 @@ export class TowerViews {
         break;
       }
       case 'heli': {
-        this.animateHeli(v, t, dt, target);
+        this.animateHeli(v, t, dt);
         break;
       }
       default: {
@@ -237,30 +239,24 @@ export class TowerViews {
   }
 
   /**
-   * The helicopter flies where the sim puts it (`TowerState.unit`, when the heli behaviour
-   * provides one) or else hovers over its pad, with a lazy drift, banking toward its target; the
-   * rotor spins constantly.
+   * The helicopter flies where the sim puts it (`TowerState.unit`, heading = body angle); the
+   * pad stays put. A gentle hover bob, a ground shadow offset by its altitude, constant rotor.
    */
-  private animateHeli(v: TowerView, t: TowerState, dt: number, target: EnemyState | null): void {
-    const unit = unitOf(t);
-    const drift = unit ? 4 : 12;
-    const tx = (unit ? unit.x : t.x) + Math.sin(v.t * 0.7) * drift;
-    const ty = (unit ? unit.y : t.y) + Math.sin(v.t * 1.4) * drift * 0.5;
-    const k = 1 - Math.exp(-(unit ? 14 : 4) * dt);
-    v.hx += (tx - v.hx) * k;
-    v.hy += (ty - v.hy) * k;
-    const idle = unit ? unit.angle : v.angle + dt * 0.25;
-    const want = target ? Math.atan2(target.y - v.hy, target.x - v.hx) : idle;
-    v.angle = smoothAngle(v.angle, want, 7, dt);
+  private animateHeli(v: TowerView, t: TowerState, dt: number): void {
+    const unit = t.unit;
+    const ux = unit ? unit.x : t.x;
+    const uy = unit ? unit.y : t.y;
+    const k = 1 - Math.exp(-20 * dt);
+    v.hx += (ux - v.hx) * k;
+    v.hy += (uy - v.hy) * k;
+    v.angle = smoothAngle(v.angle, unit ? unit.angle : v.angle, 12, dt);
     v.recoil *= Math.exp(-14 * dt);
     const kick = v.recoil * 2;
-    // Drawn HELI_LIFT px above its ground point, slightly larger, with the shadow on the ground.
-    const bx = v.hx - Math.cos(v.angle) * kick;
-    const by = v.hy - HELI_LIFT - Math.sin(v.angle) * kick;
-    const s = v.scale * HELI_SCALE;
-    v.turret.setPosition(bx, by).setRotation(v.angle).setScale(s);
-    v.rotor?.setPosition(v.hx, v.hy - HELI_LIFT).setRotation(v.t * ROTOR_SPEED).setScale(s);
-    v.heliShadow?.setPosition(v.hx + 10, v.hy + 8).setRotation(v.angle);
+    const bob = Math.sin(v.t * 2.2) * 0.03;
+    const s = v.scale * HELI_SCALE * (1 + bob);
+    v.turret.setPosition(v.hx - Math.cos(v.angle) * kick, v.hy - Math.sin(v.angle) * kick).setRotation(v.angle).setScale(s);
+    v.rotor?.setPosition(v.hx, v.hy).setRotation(v.t * ROTOR_SPEED).setScale(s);
+    v.heliShadow?.setPosition(v.hx + HELI_SHADOW_X, v.hy + HELI_SHADOW_Y).setRotation(v.angle);
   }
 
   private drawPips(v: TowerView, t: TowerState): void {
@@ -313,9 +309,3 @@ function easeOutBack(t: number): number {
   return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
 }
 
-/** A unit a tower flies around (the helicopter), when the sim provides one. */
-interface TowerUnitLike { x: number; y: number; angle: number }
-
-function unitOf(t: TowerState): TowerUnitLike | null {
-  return (t as { unit?: TowerUnitLike | null }).unit ?? null;
-}

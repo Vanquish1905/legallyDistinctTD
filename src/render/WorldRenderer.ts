@@ -87,7 +87,14 @@ export class WorldRenderer {
     this.ghost.update(realDt);
     this.time += realDt;
     if (this.selectedUid !== null && selected) {
-      this.selection.show(selected.x, selected.y, selected.range, RANGE_OK);
+      // The helicopter hunts within its leash around the patrol point (or pad).
+      const flight = selected.stats.flight;
+      if (flight) {
+        const anchor = selected.patrol ?? selected;
+        this.selection.show(anchor.x, anchor.y, flight.leash, RANGE_OK);
+      } else {
+        this.selection.show(selected.x, selected.y, selected.range, RANGE_OK);
+      }
       const r = selected.def.footprint * 1.25;
       if (r !== this.selRingR) {
         this.selRingR = r;
@@ -152,6 +159,10 @@ export class WorldRenderer {
       case 'explosion':
         fx.explosion(e.x, e.y, e.radius, e.damageType);
         break;
+      case 'railShot':
+        fx.tracer(e.x1, e.y1, e.x2, e.y2, 0x38bdf8, 5 + Math.min(4, e.hits));
+        fx.flash(e.x1, e.y1, 0x8be9ff, 0.9);
+        break;
       case 'chainLightning':
         fx.lightning(e.points);
         break;
@@ -214,9 +225,7 @@ export class WorldRenderer {
   }
 
   private towerById(uid: number): TowerState | undefined {
-    const towers = this.sim.towers;
-    for (let i = 0; i < towers.length; i++) if ((towers[i] as TowerState).uid === uid) return towers[i];
-    return undefined;
+    return this.sim.getTower(uid);
   }
 }
 
