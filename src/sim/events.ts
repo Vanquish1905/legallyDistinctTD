@@ -4,7 +4,8 @@ import type { DamageType, Vec2 } from './types';
 export type SimEvent =
   | { type: 'enemySpawn'; uid: number; enemyId: string; x: number; y: number; boss: boolean }
   | { type: 'enemyKilled'; uid: number; enemyId: string; x: number; y: number; reward: number; towerUid: number | null }
-  | { type: 'enemyLeaked'; uid: number; enemyId: string; damage: number }
+  /** `damage` = the enemy's leak damage (actual lives lost are capped at the lives left); (x, y) = exit point. */
+  | { type: 'enemyLeaked'; uid: number; enemyId: string; damage: number; x: number; y: number }
   | { type: 'enemyHit'; uid: number; x: number; y: number; amount: number; damageType: DamageType; shielded: boolean; towerUid: number | null }
   | { type: 'towerFired'; uid: number; towerId: string; x: number; y: number; angle: number; targetUid: number }
   | { type: 'towerPlaced'; uid: number; towerId: string; x: number; y: number }
@@ -20,7 +21,7 @@ export type SimEvent =
   | { type: 'beam'; towerUid: number; x1: number; y1: number; x2: number; y2: number; intensity: number }
   | { type: 'waveStart'; wave: number; early: boolean; bonus: number; boss?: string }
   | { type: 'waveCleared'; wave: number; bonus: number }
-  | { type: 'bossSpawn'; uid: number; enemyId: string; name: string }
+  | { type: 'bossSpawn'; uid: number; enemyId: string; name: string; maxHp: number }
   | { type: 'bossPhase'; uid: number; enemyId: string; phase: number; name: string }
   /** A heal aura pulsed at (x, y); `amount` is the total HP restored to allies (may be 0). */
   | { type: 'enemyHealed'; uid: number; enemyId: string; x: number; y: number; radius: number; amount: number }

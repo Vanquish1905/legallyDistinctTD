@@ -20,6 +20,11 @@ export class WaveRunner {
     return this.active.length > 0;
   }
 
+  /** Number of waves currently running. */
+  get count(): number {
+    return this.active.length;
+  }
+
   /** Seconds until the most recently started wave has released its last spawn (0 when none). */
   remainingSpawnTime(): number {
     const w = this.active[this.active.length - 1];

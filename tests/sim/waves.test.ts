@@ -91,6 +91,16 @@ describe('WaveManager', () => {
     expect(wm().earlyStartBonus(4)).toBe(20);
   });
 
+  it('caps the early bonus and shrinks it with every wave already overlapping', () => {
+    expect(wm().earlyStartBonus(4, 60)).toBe(80);
+    expect(wm().earlyStartBonus(4, 60, 2)).toBe(20);
+    expect(wm().earlyStartBonus(4, 60, 3)).toBe(Math.round(80 / 9));
+    // calling 40 waves back to back at t = 0 pays less than two normal clears
+    let spam = 0;
+    for (let w = 2; w <= 40; w++) spam += wm().earlyStartBonus(w, 60, w - 1);
+    expect(spam).toBeLessThan(wm().clearBonus(1) + wm().clearBonus(2));
+  });
+
   it('generates deterministic endless waves with growing budget and HP', () => {
     const a = wm(99);
     const b = wm(99);
@@ -146,6 +156,22 @@ describe('GameSim with the WaveManager', () => {
     expect(sim.nextWaveBonus()).toBe(expected);
     sim.startNextWave();
     expect(sim.money).toBe(normal.startMoney + expected);
+  });
+
+  it('pays no early bonus when the next wave cannot start (last wave running)', () => {
+    const sim = makeSim({ difficulty: { ...normal, waves: 2 }, enemies: fastStubs });
+    sim.startNextWave();
+    runTicks(sim, 30);
+    expect(sim.nextWaveBonus()).toBeGreaterThan(0);
+    sim.startNextWave();
+    expect(sim.wave).toBe(2);
+    expect(sim.phase).toBe('wave');
+    expect(sim.canStartNextWave()).toBe(false);
+    expect(sim.nextWaveBonus()).toBe(0);
+    const money = sim.money;
+    sim.startNextWave();
+    expect(sim.money).toBe(money);
+    expect(sim.wave).toBe(2);
   });
 
   it('auto-starts the next wave 3 s after a clear', () => {

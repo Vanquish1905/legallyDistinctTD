@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOSS_IDS, ENEMIES, ENEMY_IDS, isBoss } from '../../src/data/enemies';
 import { BOSSES } from '../../src/data/bosses';
+import { DIFFICULTIES } from '../../src/data/difficulty';
 import type { EnemyAbilityDef, EnemyDef, EnemyTrait } from '../../src/sim/types';
 
 const PINNED_ENEMIES = ['larva', 'mite', 'tick', 'leech', 'spore', 'sporelet', 'phantom', 'beetle', 'swarmling',
@@ -77,11 +78,20 @@ describe('enemy registry', () => {
       expect(def.hp).toBeLessThanOrEqual(2000);
       expect(def.leakDamage).toBeLessThanOrEqual(5);
     }
-    for (const [, def] of bosses) expect(def.leakDamage).toBeGreaterThanOrEqual(50);
+    // a leaking boss hurts a lot but never ends an Easy/Normal run on its own...
+    for (const [, def] of bosses) {
+      expect(def.leakDamage).toBeGreaterThanOrEqual(20);
+      expect(def.leakDamage).toBeLessThan(DIFFICULTIES.normal.lives);
+    }
+    const leaks = BOSS_IDS.map((id) => ENEMIES[id].leakDamage);
+    expect(leaks).toEqual([...leaks].sort((a, b) => a - b));
     const hp = BOSS_IDS.map((id) => ENEMIES[id].hp);
     expect(hp).toEqual([...hp].sort((a, b) => a - b));
-    expect(ENEMIES.irontick.armor).toBe(12);
-    expect(ENEMIES.omega.leakDamage).toBeGreaterThanOrEqual(1000);
+    // ...except Omega on Hard and Nightmare
+    expect(ENEMIES.omega.lethalOn).toEqual(['hard', 'nightmare']);
+    for (const [id, def] of all) if (id !== 'omega') expect(def.lethalOn).toBeUndefined();
+    // armor low enough that basic towers still matter against bosses
+    for (const [, def] of bosses) expect(def.armor).toBeLessThanOrEqual(6);
   });
 
   it('only references existing, non-boss enemies for splits and summons', () => {

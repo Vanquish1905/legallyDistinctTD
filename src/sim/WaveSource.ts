@@ -23,9 +23,10 @@ export interface WaveSource {
   clearBonus(wave: number): number;
   /**
    * Money paid for calling `wave` while the previous one is still running. `remainingSpawnTime`
-   * is how many seconds of spawning the latest running wave still had left.
+   * is how many seconds of spawning the latest running wave still had left; `runningWaves` is
+   * how many waves are running at the moment of the call (at least 1).
    */
-  earlyStartBonus(wave: number, remainingSpawnTime?: number): number;
+  earlyStartBonus(wave: number, remainingSpawnTime?: number, runningWaves?: number): number;
   /** Boss id of a wave, if it has one. */
   bossOf?(wave: number): string | undefined;
   /** Summary of a wave for the next-wave preview. */

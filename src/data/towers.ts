@@ -326,7 +326,7 @@ export const TOWERS: Readonly<Record<TowerId, TowerDef>> = {
       path('Amplitude',
         up('Bigger Bang', 260, '+10 pulse damage.', { add: { damage: 10 } }, DMG),
         up('Wider Ring', 650, '+40 pulse radius.', { add: { range: 40 } }, RANGE),
-        up('Shockwave', 1950, 'Pulses knock parasites back 30 px further and stun them for 0.6 s (bosses: half, no knockback).', {
+        up('Shockwave', 1950, 'Pulses knock parasites back 30 px further and stun them for 0.6 s (bosses resist: short stun, no knockback).', {
           add: { knockback: 30, stun: 0.6 },
         })),
       path('Frequency',
@@ -392,7 +392,9 @@ export const TOWERS: Readonly<Record<TowerId, TowerDef>> = {
           add: { 'interest.rate': 0.02, 'interest.cap': 100 },
         }, COIN),
         up('Hedge Fund', 800, 'Interest +2% (4% total, max 250).', { add: { 'interest.rate': 0.02, 'interest.cap': 150 } }, COIN),
-        up('Stock Market Genius', 2400, 'Interest +3% (7% total, max 600).', { add: { 'interest.rate': 0.03, 'interest.cap': 350 } })),
+        up('Stock Market Genius', 2400, 'Interest +3% (7% total, max 600). All factories together pay at most 600 interest per wave.', {
+          add: { 'interest.rate': 0.03, 'interest.cap': 350 },
+        })),
     ],
     sprite: sprite('coinfactory'),
   },

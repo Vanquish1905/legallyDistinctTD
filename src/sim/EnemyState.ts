@@ -29,7 +29,10 @@ export interface EnemySpawnOptions {
   distance: number;
   /** Sideways offset from the centre line (px). */
   offset: number;
+  /** Total HP multiplier (difficulty × wave scaling). */
   hpMul: number;
+  /** The wave-scaling part of `hpMul` (freeplay growth), inherited by splits and summons. */
+  waveHpMul?: number;
   speedMul: number;
   /** Wave this enemy belongs to (for wave-clear tracking). */
   wave: number;
@@ -50,6 +53,8 @@ export class EnemyState implements Circle, DamageTarget {
   readonly altitude: number;
   /** Base speed in px/s after difficulty scaling. */
   readonly baseSpeed: number;
+  /** Extra HP multiplier from wave scaling (freeplay); children and summons inherit it. */
+  readonly waveHpMul: number;
   x = 0;
   y = 0;
   /** Heading in radians. */
@@ -80,6 +85,7 @@ export class EnemyState implements Circle, DamageTarget {
     this.wave = o.wave;
     this.offset = o.offset;
     this.maxHp = o.def.hp * o.hpMul;
+    this.waveHpMul = o.waveHpMul ?? 1;
     this.hp = this.maxHp;
     this.armor = o.def.armor;
     this.radius = o.def.radius;
@@ -102,6 +108,14 @@ export class EnemyState implements Circle, DamageTarget {
 
   get isBoss(): boolean {
     return this.def.traits.includes('boss');
+  }
+
+  /**
+   * Resists crowd control (the 'boss' trait): weaker slows with a speed floor, short stuns with a
+   * cooldown, no knockback. See `resistedSlowFactor` and `applyStun` in status.ts.
+   */
+  get controlResist(): boolean {
+    return this.isBoss;
   }
 
   /** Recompute position/heading from `distance`. */

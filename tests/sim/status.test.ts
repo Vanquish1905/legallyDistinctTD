@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_DOT_STACKS, applyDot, applySlow, applyStun, makeStatus, statusSpeedFactor, tickStatus, type DotEffect,
+  MAX_DOT_STACKS, RESIST_SLOW_FLOOR, RESIST_STUN_COOLDOWN, applyDot, applySlow, applyStun, makeStatus,
+  resistedSlowFactor, statusSpeedFactor, tickStatus, type DotEffect,
 } from '../../src/sim/status';
 
 const ignore = (): void => {};
@@ -53,6 +54,29 @@ describe('stun', () => {
     expect(statusSpeedFactor(s)).toBe(0);
     tickStatus(s, 1, ignore);
     expect(statusSpeedFactor(s)).toBe(0.5);
+  });
+});
+
+describe('control resistance', () => {
+  it('keeps 40% of a slow and never goes below the floor', () => {
+    expect(resistedSlowFactor(0.5)).toBeCloseTo(0.8);
+    expect(resistedSlowFactor(0.9)).toBeCloseTo(0.96);
+    expect(resistedSlowFactor(0)).toBe(RESIST_SLOW_FLOOR);
+    expect(resistedSlowFactor(1)).toBe(1);
+  });
+
+  it('quarters resisted stuns and puts them on a cooldown', () => {
+    const s = makeStatus();
+    applyStun(s, 0.4, true);
+    expect(s.stunRemaining).toBeCloseTo(0.1);
+    tickStatus(s, 0.1, ignore);
+    applyStun(s, 0.4, true);
+    expect(s.stunRemaining).toBe(0);
+    tickStatus(s, RESIST_STUN_COOLDOWN, ignore);
+    applyStun(s, 0.4, true);
+    expect(s.stunRemaining).toBeCloseTo(0.1);
+    applyStun(s, 0.4);
+    expect(s.stunRemaining).toBeCloseTo(0.4);
   });
 });
 

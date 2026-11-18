@@ -4,9 +4,6 @@ import type { TowerState } from '../TowerState';
 import { applyStun } from '../status';
 import { selectTarget } from '../targeting';
 
-/** Bosses only take this fraction of stun durations. */
-export const BOSS_STUN_FACTOR = 0.5;
-
 const candidates: EnemyState[] = [];
 
 /**
@@ -36,16 +33,19 @@ export function pickTargets(
   return out;
 }
 
-/** Stun an enemy for the tower's `stats.stun` seconds (halved on bosses). No-op without stun. */
+/**
+ * Stun an enemy for the tower's `stats.stun` seconds. Control-resistant enemies (bosses) take a
+ * shortened stun with a cooldown (see `applyStun`). No-op without stun.
+ */
 export function stunFromTower(tower: TowerState, e: EnemyState): void {
   const s = tower.stats.stun ?? 0;
   if (s <= 0 || !e.alive) return;
-  applyStun(e.status, e.isBoss ? s * BOSS_STUN_FACTOR : s);
+  applyStun(e.status, s, e.controlResist);
 }
 
-/** Push an enemy `px` back along its path (bosses are immune). */
+/** Push an enemy `px` back along its path (control-resistant enemies, i.e. bosses, are immune). */
 export function knockBack(ctx: SimContext, e: EnemyState, px: number): void {
-  if (px <= 0 || !e.alive || e.isBoss) return;
+  if (px <= 0 || !e.alive || e.controlResist) return;
   e.distance = Math.max(0, e.distance - px);
   e.place(ctx.pathAt(e.pathIndex));
 }

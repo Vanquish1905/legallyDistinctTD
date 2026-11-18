@@ -10,7 +10,7 @@ import { SimEventQueue } from './events';
 import { Economy } from './Economy';
 import { Rng } from './rng';
 import { applyDamage, makeDamageResult } from './damage';
-import { applyDot, applySlow, tickStatus, type DotEffect } from './status';
+import { applyDot, applySlow, resistedSlowFactor, tickStatus, type DotEffect } from './status';
 import { isTargetable, selectTarget } from './targeting';
 import { initAbility, updateAbility } from './enemyAbilities';
 
@@ -122,7 +122,8 @@ export class World implements SimContext {
     if (damage > 0) this.damageEnemy(enemy, damage, spec.damageType, towerUid);
     if (!enemy.alive) return;
     if (spec.slow && !enemy.def.traits.includes('slowImmune')) {
-      applySlow(enemy.status, spec.slow.factor, spec.slow.duration);
+      const f = enemy.controlResist ? resistedSlowFactor(spec.slow.factor) : spec.slow.factor;
+      applySlow(enemy.status, f, spec.slow.duration);
     }
     if (spec.dot) applyDot(enemy.status, towerUid ?? -1, spec.dot.dps, spec.dot.duration, spec.dot.type);
   }
@@ -161,6 +162,7 @@ export class World implements SimContext {
       uid: this.nextUid++, def, pathIndex: this.paths.indexOf(path), path, offset, wave,
       distance: Math.max(0, Math.min(distance, path.length)),
       hpMul: this.difficulty.hpMul * hpMul,
+      waveHpMul: hpMul,
       speedMul: this.difficulty.speedMul,
     });
     initAbility(e);
@@ -168,7 +170,7 @@ export class World implements SimContext {
     this.enemyByUid.set(e.uid, e);
     this.aliveByWave.set(wave, (this.aliveByWave.get(wave) ?? 0) + 1);
     this.events.push({ type: 'enemySpawn', uid: e.uid, enemyId, x: e.x, y: e.y, boss: e.isBoss });
-    if (e.isBoss) this.events.push({ type: 'bossSpawn', uid: e.uid, enemyId, name: def.name });
+    if (e.isBoss) this.events.push({ type: 'bossSpawn', uid: e.uid, enemyId, name: def.name, maxHp: e.maxHp });
     return e;
   }
 
@@ -245,7 +247,7 @@ export class World implements SimContext {
     const split = e.def.onDeath;
     if (split) {
       for (let i = 0; i < split.count; i++) {
-        this.spawnEnemy(split.spawn, e.pathIndex, e.distance - i * SPLIT_SPACING, e.wave);
+        this.spawnEnemy(split.spawn, e.pathIndex, e.distance - i * SPLIT_SPACING, e.wave, e.waveHpMul);
       }
     }
   }
@@ -253,8 +255,9 @@ export class World implements SimContext {
   private leak(e: EnemyState): void {
     e.alive = false;
     this.aliveByWave.set(e.wave, this.aliveInWave(e.wave) - 1);
-    const damage = Math.min(this.lives, e.def.leakDamage);
-    this.events.push({ type: 'enemyLeaked', uid: e.uid, enemyId: e.def.id, damage: e.def.leakDamage });
+    const nominal = e.def.lethalOn?.includes(this.difficulty.id) ? this.lives : e.def.leakDamage;
+    const damage = Math.min(this.lives, nominal);
+    this.events.push({ type: 'enemyLeaked', uid: e.uid, enemyId: e.def.id, damage: nominal, x: e.x, y: e.y });
     if (damage > 0) {
       this.lives -= damage;
       this.events.push({ type: 'livesChanged', lives: this.lives, delta: -damage });

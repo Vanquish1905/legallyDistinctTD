@@ -90,6 +90,12 @@ export class GameSim {
   get map(): MapDef { return this.world.map; }
   get difficulty(): DifficultyDef { return this.world.difficulty; }
 
+  /** Tower by uid (O(1)), or undefined when it is not on the field. */
+  getTower(uid: number): TowerState | undefined { return this.world.getTower(uid); }
+
+  /** Alive enemy by uid (O(1)), or undefined when it is dead, leaked or unknown. */
+  getEnemy(uid: number): EnemyState | undefined { return this.world.getEnemy(uid); }
+
   /** Advance by `dt` seconds of real time, in whole `SIM_DT` ticks (remainder carried over). */
   step(dt: number): void {
     this.accumulator += Math.min(Math.max(dt, 0), MAX_STEP);
@@ -233,8 +239,7 @@ export class GameSim {
    * the game is over.
    */
   startNextWave(): void {
-    if (this.phase === 'won' || this.phase === 'lost') return;
-    if (!this.freeplay && this.wave >= this.world.difficulty.waves) return;
+    if (!this.canStartNextWave()) return;
     const early = this.phase === 'wave';
     const bonus = this.nextWaveBonus();
     this.wave++;
@@ -246,10 +251,16 @@ export class GameSim {
     this.world.events.push({ type: 'waveStart', wave: this.wave, early, bonus, ...(boss ? { boss } : {}) });
   }
 
-  /** Bonus `startNextWave` would pay right now (0 outside a running wave). */
+  /** Whether `startNextWave` would start a wave now (false after the last wave or when over). */
+  canStartNextWave(): boolean {
+    if (this.phase === 'won' || this.phase === 'lost') return false;
+    return this.freeplay || this.wave < this.world.difficulty.waves;
+  }
+
+  /** Bonus `startNextWave` would pay right now (0 outside a running wave or when no wave can start). */
   nextWaveBonus(): number {
-    if (this.phase !== 'wave') return 0;
-    return this.source.earlyStartBonus(this.wave + 1, this.runner.remainingSpawnTime());
+    if (this.phase !== 'wave' || !this.canStartNextWave()) return 0;
+    return this.source.earlyStartBonus(this.wave + 1, this.runner.remainingSpawnTime(), this.runner.count);
   }
 
   /** Preview of a wave (default: the next one), when the wave source supports it. */

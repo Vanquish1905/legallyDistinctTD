@@ -55,7 +55,9 @@ export const ENEMY_ABILITIES: AbilityRegistry = {
   spawn(enemy, a, ctx, dt) {
     if (!every(enemy, a.interval, dt)) return;
     for (let i = 0; i < a.count; i++) {
-      ctx.spawnEnemy(a.enemyId, enemy.pathIndex, enemy.distance - SUMMON_BEHIND - i * SUMMON_SPACING, enemy.wave);
+      ctx.spawnEnemy(
+        a.enemyId, enemy.pathIndex, enemy.distance - SUMMON_BEHIND - i * SUMMON_SPACING, enemy.wave, enemy.waveHpMul,
+      );
     }
   },
   enrage(enemy, a) {

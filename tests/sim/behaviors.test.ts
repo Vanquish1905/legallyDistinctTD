@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ScriptedWaveSource } from '../../src/sim/WaveSource';
 import { computeStats } from '../../src/sim/TowerState';
+import { INTEREST_CAP_PER_WAVE } from '../../src/sim/towerBehaviors/income';
 import { PATH_Y, makeSim, runTicks, runUntil, stubEnemy, stubTower, waves } from './helpers';
 
 const one = (id: string, n = 1, gap = 0.3) => new ScriptedWaveSource([
@@ -54,6 +55,24 @@ describe('income behaviour', () => {
     expect(sim.money).toBe(1001 + 50 + 40);
     const ev = sim.events.drain().find((e) => e.type === 'income');
     expect(ev).toMatchObject({ type: 'income', uid: t.uid, amount: 90 });
+  });
+
+  it('caps the interest of all factories together per wave', () => {
+    const bank = stubTower({ id: 'bank', behavior: 'income' }, { damage: 0, income: 0, interest: { rate: 0.5, cap: 500 } });
+    const sim = makeSim({ towers: { bank }, waves: waves([{ id: 'grub', count: 0 }], [{ id: 'grub', count: 0 }]) });
+    sim.grantMoney(5000);
+    const a = sim.placeTower('bank', 600, 300)!;
+    const b = sim.placeTower('bank', 700, 300)!;
+    sim.events.drain();
+    sim.startNextWave();
+    runTicks(sim, 1);
+    const paid = sim.events.drain().filter((e) => e.type === 'income');
+    expect(paid.map((e) => 'uid' in e && [e.uid, e.amount])).toEqual([[a.uid, 500], [b.uid, INTEREST_CAP_PER_WAVE - 500]]);
+    // the cap resets on the next wave
+    sim.startNextWave();
+    runTicks(sim, 1);
+    const total = sim.events.drain().reduce((sum, e) => sum + (e.type === 'income' ? e.amount : 0), 0);
+    expect(total).toBe(INTEREST_CAP_PER_WAVE);
   });
 });
 

@@ -3,6 +3,18 @@ import type { DamageType } from './types';
 /** Maximum stacks a single damage-over-time source can build on one enemy. */
 export const MAX_DOT_STACKS = 5;
 
+/**
+ * Control resistance (bosses): slows keep this share of their strength, so a 0.5 slow becomes
+ * 1 - 0.5 * 0.4 = 0.8.
+ */
+export const RESIST_SLOW_STRENGTH = 0.4;
+/** Control resistance: a slow can never push speed below this multiplier. */
+export const RESIST_SLOW_FLOOR = 0.6;
+/** Control resistance: stun durations are scaled by this. */
+export const RESIST_STUN_FACTOR = 0.25;
+/** Control resistance: after a stun lands, further stuns are ignored for this long (s). */
+export const RESIST_STUN_COOLDOWN = 2.5;
+
 /** One damage-over-time entry, keyed by its source (tower uid). */
 export interface DotEffect {
   source: number;
@@ -19,12 +31,14 @@ export interface StatusState {
   slowFactor: number;
   slowRemaining: number;
   stunRemaining: number;
+  /** Seconds until a control-resistant enemy can be stunned again. */
+  stunCooldown: number;
   dots: DotEffect[];
 }
 
 /** Fresh, effect-free status state. */
 export function makeStatus(): StatusState {
-  return { slowFactor: 1, slowRemaining: 0, stunRemaining: 0, dots: [] };
+  return { slowFactor: 1, slowRemaining: 0, stunRemaining: 0, stunCooldown: 0, dots: [] };
 }
 
 /**
@@ -42,8 +56,23 @@ export function applySlow(s: StatusState, factor: number, duration: number): voi
   }
 }
 
-/** Stun for at least `duration` seconds (does not add up). */
-export function applyStun(s: StatusState, duration: number): void {
+/** Slow factor a control-resistant enemy actually gets from a slow of `factor`. */
+export function resistedSlowFactor(factor: number): number {
+  return Math.max(RESIST_SLOW_FLOOR, 1 - (1 - factor) * RESIST_SLOW_STRENGTH);
+}
+
+/**
+ * Stun for at least `duration` seconds (does not add up). Control-resistant enemies (`resist`)
+ * take a quarter of the duration and then ignore stuns for `RESIST_STUN_COOLDOWN` s, so many
+ * stunning towers cannot chain-lock them.
+ */
+export function applyStun(s: StatusState, duration: number, resist = false): void {
+  if (duration <= 0) return;
+  if (resist) {
+    if (s.stunCooldown > 0) return;
+    duration *= RESIST_STUN_FACTOR;
+    s.stunCooldown = RESIST_STUN_COOLDOWN;
+  }
   if (duration > s.stunRemaining) s.stunRemaining = duration;
 }
 
@@ -86,6 +115,7 @@ export function tickStatus(s: StatusState, dt: number, sink: DotSink): void {
     }
   }
   if (s.stunRemaining > 0) s.stunRemaining = Math.max(0, s.stunRemaining - dt);
+  if (s.stunCooldown > 0) s.stunCooldown = Math.max(0, s.stunCooldown - dt);
   if (s.dots.length === 0) return;
   let write = 0;
   for (let i = 0; i < s.dots.length; i++) {

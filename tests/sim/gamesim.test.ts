@@ -138,6 +138,7 @@ describe('waves', () => {
       { type: 'livesChanged', lives: 0, delta: -20 },
     ]);
     expect(types(seen)).toContain('gameLost');
+    expect(seen.find((e) => e.type === 'enemyLeaked')).toMatchObject({ damage: 40, x: 1640 });
     expect(sim.placeTower('gun', 600, 300)).toBeNull();
     const t = sim.time;
     runTicks(sim, 10);
@@ -215,6 +216,22 @@ describe('waves', () => {
     runUntil(sim, () => sim.phase === 'build', 30);
     expect(sim.lives).toBe(100);
     expect(gun.kills).toBe(1);
+  });
+});
+
+describe('lookups', () => {
+  it('finds towers and alive enemies by uid', () => {
+    const sim = makeSim({ waves: waves([{ id: 'grub', count: 1 }]) });
+    const t = sim.placeTower('gun', 600, 300)!;
+    expect(sim.getTower(t.uid)).toBe(t);
+    sim.startNextWave();
+    runTicks(sim, 2);
+    const e = sim.enemies[0]!;
+    expect(sim.getEnemy(e.uid)).toBe(e);
+    expect(sim.getEnemy(t.uid)).toBeUndefined();
+    sim.sellTower(t.uid);
+    expect(sim.getTower(t.uid)).toBeUndefined();
+    expect(sim.getTower(424242)).toBeUndefined();
   });
 });
 

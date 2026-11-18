@@ -47,8 +47,11 @@ export interface SimContext {
   ): void;
   /** Launch a pooled projectile (emits 'projectileSpawn'). */
   spawnProjectile(init: ProjectileInit): ProjectileState;
-  /** Spawn an enemy mid-path (splits, summons). Returns null for unknown ids. */
-  spawnEnemy(enemyId: string, pathIndex: number, distance: number, wave: number): EnemyState | null;
+  /**
+   * Spawn an enemy mid-path (splits, summons). `hpMul` is extra wave scaling on top of the
+   * difficulty (pass the parent's `waveHpMul`). Returns null for unknown ids.
+   */
+  spawnEnemy(enemyId: string, pathIndex: number, distance: number, wave: number, hpMul?: number): EnemyState | null;
   /** Take a tower off the field without refund (e.g. a consumed trap). Safe during `update`. */
   removeTower(tower: TowerState): void;
   /** Grant money (income, bonuses). */

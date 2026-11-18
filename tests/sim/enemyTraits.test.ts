@@ -8,6 +8,11 @@ import type { HitSpec } from '../../src/sim/SimContext';
 import type { SimEvent } from '../../src/sim/events';
 import { ENEMIES } from '../../src/data/enemies';
 import { SIM_DT } from '../../src/config';
+import { TowerState } from '../../src/sim/TowerState';
+import { knockBack, stunFromTower } from '../../src/sim/towerBehaviors/common';
+import { RESIST_STUN_COOLDOWN } from '../../src/sim/status';
+import { DIFFICULTIES } from '../../src/data/difficulty';
+import type { DifficultyDef } from '../../src/sim/types';
 import { runUntil, stubDifficulty, stubMap, stubTower } from './helpers';
 
 /** A World with the real enemy registry and no towers. */
@@ -182,15 +187,15 @@ describe('bosses', () => {
     const boss = spawn(w, 'irontick', 0);
     w.events.drain();
     tick(w, SIM_DT);
-    expect(boss.armor).toBe(12);
+    expect(boss.armor).toBe(4);
     boss.hp = boss.maxHp * 0.7;
     tick(w, SIM_DT);
-    expect(boss.armor).toBe(18);
+    expect(boss.armor).toBe(7);
     expect(boss.currentSpeed).toBeCloseTo(34 * 0.8);
     boss.hp = boss.maxHp * 0.4;
     tick(w, SIM_DT);
     expect(boss.armor).toBe(0);
-    expect(boss.currentSpeed).toBeCloseTo(34 * 1.7);
+    expect(boss.currentSpeed).toBeCloseTo(34 * 1.4);
     expect(ofType(w.events.drain(), 'bossPhase').map((e) => [e.phase, e.name]))
       .toEqual([[1, 'Plating Up'], [2, 'Shell Shed']]);
   });
@@ -212,8 +217,8 @@ describe('bosses', () => {
     boss.hp = boss.maxHp * 0.3;
     tick(w, SIM_DT);
     expect(ofType(w.events.drain(), 'bossPhase').map((e) => e.name)).toEqual(['Psychic Frenzy']);
-    tick(w, 4);
-    expect(w.enemies.filter((e) => e.def.id === 'phantom')).toHaveLength(5);
+    tick(w, 5);
+    expect(w.enemies.filter((e) => e.def.id === 'phantom')).toHaveLength(4);
   });
 
   it('colossus enrages as it loses HP and bursts into eight beetles', () => {
@@ -223,10 +228,10 @@ describe('bosses', () => {
     expect(boss.currentSpeed).toBeCloseTo(26);
     boss.hp = boss.maxHp * 0.5;
     tick(w, SIM_DT);
-    expect(boss.currentSpeed).toBeCloseTo(26 * 2);
+    expect(boss.currentSpeed).toBeCloseTo(26 * 1.4);
     boss.hp = boss.maxHp * 0.1;
     tick(w, SIM_DT);
-    expect(boss.currentSpeed).toBeCloseTo(26 * 2.8);
+    expect(boss.currentSpeed).toBeCloseTo(26 * 1.72);
     w.damageEnemy(boss, 1e9, 'fire', null);
     expect(w.enemies.filter((e) => e.alive).map((e) => e.def.id)).toEqual(Array(8).fill('beetle'));
   });
@@ -239,16 +244,16 @@ describe('bosses', () => {
     expect(ids()).toEqual(['larva', 'larva', 'larva', 'larva']);
     boss.hp = boss.maxHp * 0.7;
     tick(w, 5.05);
-    expect(boss.armor).toBe(18);
+    expect(boss.armor).toBe(12);
     expect(ids().filter((id) => id === 'tick')).toHaveLength(3);
     boss.hp = boss.maxHp * 0.45;
     tick(w, 5.05);
-    expect(boss.armor).toBe(4);
+    expect(boss.armor).toBe(3);
     expect(ids().filter((id) => id === 'phantom')).toHaveLength(3);
     boss.hp = boss.maxHp * 0.2;
     tick(w, 6.05);
     expect(boss.armor).toBe(0);
-    expect(boss.currentSpeed).toBeGreaterThan(28 * 2.5);
+    expect(boss.currentSpeed).toBeGreaterThan(28 * 1.9);
     expect(ids().filter((id) => id === 'beetle')).toHaveLength(2);
     expect(ofType(w.events.drain(), 'bossPhase').map((e) => e.name))
       .toEqual(['Emergence', 'Iron Hide', 'Hive Chorus', 'Final Frenzy']);
@@ -256,19 +261,82 @@ describe('bosses', () => {
     expect(ids().filter((id) => id === 'beetle')).toHaveLength(8);
   });
 
-  it('are found by the default GameSim registry, and an Omega leak ends the run', () => {
-    const sim = new GameSim({
-      map: { ...stubMap, paths: [[{ x: -100, y: 540 }, { x: 0, y: 540 }]] },
-      difficulty: stubDifficulty, seed: 1, towers: { gun: stubTower() },
-      waves: new ScriptedWaveSource([[{ enemyId: 'omega', at: 0, pathIndex: 0 }]]),
+  it('are found by the default GameSim registry; an Omega leak ends the run only on Hard and Nightmare', () => {
+    const leakOmega = (difficulty: DifficultyDef): { sim: GameSim; events: SimEvent[] } => {
+      const sim = new GameSim({
+        map: { ...stubMap, paths: [[{ x: -100, y: 540 }, { x: 0, y: 540 }]] },
+        difficulty, seed: 1, towers: { gun: stubTower() },
+        waves: new ScriptedWaveSource([[{ enemyId: 'omega', at: 0, pathIndex: 0 }]]),
+      });
+      sim.startNextWave();
+      const events: SimEvent[] = [];
+      runUntil(sim, () => {
+        events.push(...sim.events.drain());
+        return sim.phase !== 'wave' || sim.lives < difficulty.lives;
+      }, 10);
+      return { sim, events };
+    };
+    const hard = leakOmega(DIFFICULTIES.hard);
+    expect(hard.sim.phase).toBe('lost');
+    expect(hard.events.find((e) => e.type === 'enemyLeaked')).toMatchObject({ damage: DIFFICULTIES.hard.lives });
+    expect(hard.events.find((e) => e.type === 'bossSpawn')).toMatchObject({
+      name: 'Omega Parasite', maxHp: ENEMIES.omega.hp * DIFFICULTIES.hard.hpMul,
     });
-    sim.startNextWave();
-    const events: SimEvent[] = [];
-    runUntil(sim, () => {
-      events.push(...sim.events.drain());
-      return sim.phase === 'lost';
-    }, 10);
-    expect(sim.phase).toBe('lost');
-    expect(events.some((e) => e.type === 'bossSpawn' && e.name === 'Omega Parasite')).toBe(true);
+    const normal = leakOmega(DIFFICULTIES.normal);
+    expect(normal.sim.phase).not.toBe('lost');
+    expect(normal.sim.lives).toBe(DIFFICULTIES.normal.lives - ENEMIES.omega.leakDamage);
+    const leak = normal.events.find((e) => e.type === 'enemyLeaked');
+    expect(leak).toMatchObject({ enemyId: 'omega', damage: ENEMIES.omega.leakDamage });
+    expect(leak && 'x' in leak && leak.x).toBeCloseTo(0);
+  });
+});
+
+describe('boss control resistance', () => {
+  it('weakens slows with a 0.6 speed floor; regular enemies take the full slow', () => {
+    const w = world();
+    const boss = spawn(w, 'colossus', 300);
+    const grunt = spawn(w, 'larva', 300);
+    const frost: HitSpec = { ...seeAll, damage: 0, slow: { factor: 0.5, duration: 2 } };
+    w.hitEnemy(boss, frost, null);
+    w.hitEnemy(grunt, frost, null);
+    expect(boss.status.slowFactor).toBeCloseTo(0.8);
+    expect(grunt.status.slowFactor).toBeCloseTo(0.5);
+    w.hitEnemy(boss, { ...frost, slow: { factor: 0, duration: 2 } }, null);
+    expect(boss.status.slowFactor).toBeCloseTo(0.6);
+  });
+
+  it('shortens stuns to a quarter and ignores new stuns during the cooldown; no knockback', () => {
+    const w = world();
+    const boss = spawn(w, 'queen', 300);
+    const coil = new TowerState({ uid: 999, def: stubTower({}, { stun: 0.4, knockback: 30 }), x: 0, y: 0, spent: 0, placedBuildWave: -1 });
+    stunFromTower(coil, boss);
+    expect(boss.status.stunRemaining).toBeCloseTo(0.1);
+    tick(w, 0.2);
+    stunFromTower(coil, boss);
+    expect(boss.status.stunRemaining).toBe(0);
+    tick(w, RESIST_STUN_COOLDOWN);
+    stunFromTower(coil, boss);
+    expect(boss.status.stunRemaining).toBeCloseTo(0.1);
+    const before = boss.distance;
+    knockBack(w, boss, 30);
+    expect(boss.distance).toBe(before);
+  });
+});
+
+describe('freeplay scaling', () => {
+  it('passes the wave HP multiplier on to splits and summons', () => {
+    const w = world();
+    const spore = w.spawnEnemy('spore', 0, 400, 1, 2)!;
+    expect(spore.maxHp).toBeCloseTo(ENEMIES.spore.hp * 2);
+    w.damageEnemy(spore, 1e9, 'fire', null);
+    const lets = w.enemies.filter((e) => e.alive && e.def.id === 'sporelet');
+    expect(lets).toHaveLength(3);
+    for (const l of lets) expect(l.maxHp).toBeCloseTo(ENEMIES.sporelet.hp * 2);
+    const queen = w.spawnEnemy('queen', 0, 600, 1, 1.5)!;
+    tick(w, 3.55);
+    const larvae = w.enemies.filter((e) => e.def.id === 'larva');
+    expect(larvae).toHaveLength(3);
+    for (const l of larvae) expect(l.maxHp).toBeCloseTo(ENEMIES.larva.hp * 1.5);
+    expect(queen.waveHpMul).toBe(1.5);
   });
 });

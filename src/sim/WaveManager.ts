@@ -8,6 +8,8 @@ import { Rng } from './rng';
 const ENDLESS_HP_GROWTH = 1.08;
 /** Early-start bonus: money per second of spawning the current wave still had left. */
 const EARLY_BONUS_PER_SECOND = 5;
+/** Early-start bonus counts at most this many seconds of remaining spawn time. */
+const EARLY_BONUS_MAX_SECONDS = 12;
 
 /** Options for a WaveManager. */
 export interface WaveManagerOptions {
@@ -81,10 +83,16 @@ export class WaveManager implements WaveSource {
     return Math.round((100 + 10 * wave) * this.difficulty.rewardMul);
   }
 
-  /** `5 * remainingSpawnTime + 10 * sqrt(wave)`, scaled by rewardMul. */
-  earlyStartBonus(wave: number, remainingSpawnTime = 0): number {
-    const raw = EARLY_BONUS_PER_SECOND * Math.max(0, remainingSpawnTime) + 10 * Math.sqrt(wave);
-    return Math.round(raw * this.difficulty.rewardMul);
+  /**
+   * `(5 * min(remainingSpawnTime, 12) + 10 * sqrt(wave)) / runningWaves²`, scaled by rewardMul.
+   * Calling one wave early pays in full; stacking more waves on top pays less and less, so
+   * calling every wave at once is never worth it.
+   */
+  earlyStartBonus(wave: number, remainingSpawnTime = 0, runningWaves = 1): number {
+    const seconds = Math.min(EARLY_BONUS_MAX_SECONDS, Math.max(0, remainingSpawnTime));
+    const raw = EARLY_BONUS_PER_SECOND * seconds + 10 * Math.sqrt(wave);
+    const overlap = Math.max(1, runningWaves);
+    return Math.round((raw / (overlap * overlap)) * this.difficulty.rewardMul);
   }
 
   bossOf(wave: number): string | undefined {

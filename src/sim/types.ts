@@ -57,6 +57,8 @@ export interface EnemyDef {
   /** Speed in px/s; armor = flat reduction vs physical & explosive. */
   hp: number; speed: number; armor: number;
   reward: number; leakDamage: number; radius: number;
+  /** On these difficulties a leak costs all remaining lives instead of `leakDamage`. */
+  lethalOn?: DifficultyDef['id'][];
   /** Damage multiplier per type, 0..1 (0 = immune). */
   resist?: Partial<Record<DamageType, number>>;
   traits: EnemyTrait[];
@@ -83,7 +85,7 @@ export interface TowerStats {
   charges?: number;
   /** Px an aura pulse pushes enemies back along their path (bosses are immune). */
   knockback?: number;
-  /** Stun seconds per hit (chain, aura, line and hitscan attacks; halved on bosses). */
+  /** Stun seconds per hit (chain, aura, line and hitscan attacks; bosses: a quarter, with a cooldown). */
   stun?: number;
   /** Beam damage ramp: multiplier grows from 1 to `max` over `time` s on the same target. */
   ramp?: { max: number; time: number };
