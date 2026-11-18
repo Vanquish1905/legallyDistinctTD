@@ -79,7 +79,7 @@ export interface TowerStats {
   /** Money per cleared wave. */
   income?: number;
   buff?: { range: number; cooldownMul: number; revealStealth: boolean; radius: number };
-  /** Targets per volley (projectile/line towers; default 1). Heli: bullets per burst. */
+  /** Distinct targets per volley for projectile shooters and the helicopter (default 1). */
   shots?: number;
   /** Trap uses (spikes) before it breaks. */
   charges?: number;
@@ -89,8 +89,11 @@ export interface TowerStats {
   stun?: number;
   /** Beam damage ramp: multiplier grows from 1 to `max` over `time` s on the same target. */
   ramp?: { max: number; time: number };
-  /** Helicopter flight: speed in px/s, hunting radius around its pad or patrol point. */
-  flight?: { speed: number; leash: number };
+  /**
+   * Helicopter flight: speed in px/s, turn rate in rad/s, and the hunting radius (`leash`, px)
+   * around its pad or player-set patrol point. `range` stays the gun's reach from the helicopter.
+   */
+  flight?: { speed: number; turnRate: number; leash: number };
   /** Paid at each wave clear: `rate` × current money, at most `cap`. */
   interest?: { rate: number; cap: number };
 }

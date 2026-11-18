@@ -19,6 +19,8 @@ export type SimEvent =
   | { type: 'explosion'; x: number; y: number; radius: number; damageType: DamageType }
   | { type: 'chainLightning'; towerUid: number; points: Vec2[] }
   | { type: 'beam'; towerUid: number; x1: number; y1: number; x2: number; y2: number; intensity: number }
+  /** An instant rail line from (x1, y1) to (x2, y2); `hits` = enemies it went through. */
+  | { type: 'railShot'; towerUid: number; x1: number; y1: number; x2: number; y2: number; hits: number }
   | { type: 'waveStart'; wave: number; early: boolean; bonus: number; boss?: string }
   | { type: 'waveCleared'; wave: number; bonus: number }
   | { type: 'bossSpawn'; uid: number; enemyId: string; name: string; maxHp: number }

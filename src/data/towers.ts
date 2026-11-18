@@ -191,17 +191,24 @@ export const TOWERS: Readonly<Record<TowerId, TowerDef>> = {
     sprite: sprite('spikes', false),
   },
   heli: {
-    id: 'heli', name: 'Heli Pad', category: 'heavy', cost: 1200, footprint: 36, placement: 'ground',
-    description: 'A gunship that guards its pad and hoses down anything that comes close.',
+    id: 'heli', name: 'Heli Pad', category: 'heavy', cost: 1200, footprint: 36, placement: 'ground', behavior: 'heli',
+    description: 'A gunship that patrols around its pad (or a spot you pick), hunts parasites and hoses them down.',
     projectile: { kind: 'bullet', motion: 'straight' },
-    stats: stats({ range: 300, cooldown: 0.15, damage: 6, projectileSpeed: 1000, flight: { speed: 220, leash: 350 } }),
+    stats: stats({
+      range: 240, cooldown: 0.15, damage: 6, projectileSpeed: 1000, shots: 1,
+      flight: { speed: 220, turnRate: 3.5, leash: 350 },
+    }),
     paths: [
       path('Door Gunner',
         up('Hot Barrels', 480, 'Fires 25% faster.', { mul: { cooldown: 0.8 } }, RATE),
         up('Heavy Miniguns', 1200, '+6 damage per bullet.', { add: { damage: 6 } }, DMG),
-        up('Gunship', 3600, 'Damage x2.5 and +60 range.', { mul: { damage: 2.5 }, add: { range: 60 } })),
+        up('Gunship', 3600, 'Damage x2.5, +60 range and a second gun: shoots 2 parasites at once.', {
+          mul: { damage: 2.5 }, add: { range: 60, shots: 1 },
+        })),
       path('Avionics',
-        up('Afterburners', 450, '+80 range.', { add: { range: 80 } }, RANGE),
+        up('Afterburners', 450, 'Flies 40% faster and hunts 100 px further from its patrol point.', {
+          mul: { 'flight.speed': 1.4 }, add: { 'flight.leash': 100 },
+        }, RANGE),
         up('FLIR Camera', 900, 'Can spot and shoot stealthy parasites.', { set: { canHitStealth: true } }, SEE),
         up('Hellfire Rockets', 3500, 'Bullets become explosive: 60 px blast and +10 damage.', {
           set: { damageType: 'explosive' }, add: { splashRadius: 60, damage: 10 },
@@ -337,10 +344,10 @@ export const TOWERS: Readonly<Record<TowerId, TowerDef>> = {
     sprite: sprite('pulse'),
   },
   railgun: {
-    id: 'railgun', name: 'Railgun', category: 'heavy', cost: 1600, footprint: 34, placement: 'ground',
-    description: 'A hypersonic slug that tears through a whole line of parasites.',
+    id: 'railgun', name: 'Railgun', category: 'heavy', cost: 1600, footprint: 34, placement: 'ground', behavior: 'line',
+    description: 'Charges up, then fires an instant slug that tears through a whole line of parasites, all the way to the edge of the map.',
     projectile: { kind: 'rail', motion: 'straight' },
-    stats: stats({ range: 650, cooldown: 3, damage: 180, damageType: 'energy', pierce: 6, projectileSpeed: 2400 }),
+    stats: stats({ range: 650, cooldown: 3, damage: 180, damageType: 'energy', pierce: 6 }),
     paths: [
       path('Capacitor Bank',
         up('Supercapacitors', 650, '+80 damage.', { add: { damage: 80 } }, DMG),

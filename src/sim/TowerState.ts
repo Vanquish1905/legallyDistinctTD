@@ -1,4 +1,4 @@
-import type { NestedStatGroup, NumericStatKey, StatModKey, StatMods, TargetMode, TowerDef, TowerStats } from './types';
+import type { NestedStatGroup, NumericStatKey, StatModKey, StatMods, TargetMode, TowerDef, TowerStats, Vec2 } from './types';
 
 /** Highest tier per upgrade path. */
 export const MAX_TIER = 3;
@@ -75,6 +75,9 @@ export function computeStats(def: TowerDef, tiers: Readonly<Tiers>): { stats: To
   return { stats, flags };
 }
 
+/** Position and heading of a tower-owned unit (see `TowerState.unit`). */
+export interface TowerUnit { x: number; y: number; angle: number }
+
 /** Options for creating a tower. */
 export interface TowerInit {
   uid: number;
@@ -114,8 +117,15 @@ export class TowerState {
   buffRangeMul = 1;
   /** Cooldown multiplier from support buffs (reset each tick). */
   buffCooldownMul = 1;
-  /** Free numeric state for behaviours (beam ramp, heli position, ...). Kept JSON-safe. */
+  /** Free numeric state for behaviours (beam ramp, spike charges, ...). Kept JSON-safe. */
   readonly memory: Record<string, number> = {};
+  /**
+   * A unit the tower owns and that moves on its own (the Heli Pad's helicopter): position and
+   * heading in field px / radians. Null for towers without one. Saved in snapshots.
+   */
+  unit: TowerUnit | null = null;
+  /** Player-set point the unit guards instead of the tower itself (null = the tower). */
+  patrol: Vec2 | null = null;
 
   constructor(o: TowerInit) {
     this.uid = o.uid;

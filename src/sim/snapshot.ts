@@ -17,6 +17,10 @@ export interface TowerSnapshot {
   kills: number;
   damageDealt: number;
   memory: Record<string, number>;
+  /** Tower-owned unit (Heli Pad helicopter) position and heading. */
+  unit?: { x: number; y: number; angle: number };
+  /** Player-set patrol point (Heli Pad). */
+  patrol?: { x: number; y: number };
 }
 
 /**
@@ -54,7 +58,9 @@ function isTowerSnapshot(v: unknown): v is TowerSnapshot {
     && Array.isArray(tiers) && tiers.length === 2 && tiers.every(isNum)
     && isNum(v.spent) && isNum(v.placedBuildWave) && isNum(v.kills) && isNum(v.damageDealt)
     && TARGET_MODES.includes(v.targetMode as TargetMode)
-    && isRecord(memory) && Object.values(memory).every(isNum);
+    && isRecord(memory) && Object.values(memory).every(isNum)
+    && (v.unit === undefined || (isRecord(v.unit) && isNum(v.unit.x) && isNum(v.unit.y) && isNum(v.unit.angle)))
+    && (v.patrol === undefined || (isRecord(v.patrol) && isNum(v.patrol.x) && isNum(v.patrol.y)));
 }
 
 /** Validate untrusted data (e.g. from localStorage) as a current-version snapshot. */

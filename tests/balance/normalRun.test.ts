@@ -14,6 +14,12 @@ describe('balance', () => {
     for (const w of r.waves) expect(w.livesBefore - w.livesAfter).toBeLessThan(70);
   }, 30_000);
 
+  it('the generalist also wins Dune Canyon on Normal', () => {
+    const r = runBot('dune-canyon', 'normal', MIXED);
+    expect(r.won).toBe(true);
+    expect(r.lives).toBeGreaterThanOrEqual(20);
+  }, 30_000);
+
   it('a build without lasers gets past the Iron Tick on Normal', () => {
     const r = runBot('green-valley', 'normal', NO_LASER, 21);
     expect(r.wave).toBe(21);

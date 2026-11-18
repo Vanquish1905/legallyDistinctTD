@@ -1,9 +1,9 @@
-import type { DifficultyDef, EnemyDef, MapDef, TargetMode, TowerDef } from './types';
+import type { DifficultyDef, EnemyDef, MapDef, TargetMode, TowerDef, Vec2 } from './types';
 import type { EnemyState } from './EnemyState';
 import type { ProjectileState } from './ProjectileState';
 import type { SimEventQueue } from './events';
 import type { TowerBehavior } from './towerBehaviors/types';
-import { SIM_DT } from '../config';
+import { FIELD_W, GAME_H, SIM_DT, TOPBAR_H } from '../config';
 import { TOWERS } from '../data/towers';
 import { ENEMIES } from '../data/enemies';
 import { TOWER_BEHAVIORS } from './towerBehaviors';
@@ -227,6 +227,25 @@ export class GameSim {
     return refund;
   }
 
+  /**
+   * Point a Heli Pad's helicopter at a patrol point (it hunts within its leash around it), or
+   * `null` to send it back to guarding its pad. False for unknown/non-heli towers, points outside
+   * the play field (below the top bar) or once the game is over.
+   */
+  setHeliTarget(uid: number, point: Vec2 | null): boolean {
+    if (this.phase === 'won' || this.phase === 'lost') return false;
+    const t = this.world.getTower(uid);
+    if (!t || t.behavior !== 'heli') return false;
+    if (point === null) {
+      t.patrol = null;
+      return true;
+    }
+    const { x, y } = point;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > FIELD_W || y < TOPBAR_H || y > GAME_H) return false;
+    t.patrol = { x, y };
+    return true;
+  }
+
   /** Change how a tower picks targets. */
   setTargetMode(uid: number, mode: TargetMode): void {
     const t = this.world.getTower(uid);
@@ -305,6 +324,8 @@ export class GameSim {
         uid: t.uid, towerId: t.def.id, x: t.x, y: t.y, tiers: [t.tiers[0], t.tiers[1]], spent: t.spent,
         placedBuildWave: t.placedBuildWave, targetMode: t.targetMode, kills: t.kills,
         damageDealt: t.damageDealt, memory: { ...t.memory },
+        ...(t.unit ? { unit: { ...t.unit } } : {}),
+        ...(t.patrol ? { patrol: { ...t.patrol } } : {}),
       })),
     };
   }
@@ -326,6 +347,8 @@ export class GameSim {
       t.kills = s.kills;
       t.damageDealt = s.damageDealt;
       Object.assign(t.memory, s.memory);
+      if (s.unit) t.unit = { ...s.unit };
+      if (s.patrol) t.patrol = { ...s.patrol };
       w.addTower(t);
       w.behaviorOf(t).onPlace?.(t, w);
     }

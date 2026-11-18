@@ -6,13 +6,15 @@ import { chainBehavior } from './chain';
 import { incomeBehavior } from './income';
 import { supportBehavior } from './support';
 import { trapBehavior } from './trap';
+import { heliBehavior } from './heli';
+import { lineBehavior } from './line';
 
 const shooter = createProjectileBehavior();
 
 /**
  * All tower behaviours, keyed by `TowerDef.behavior`. 'projectile' is the default shooter;
- * 'lob' arcs shells and 'boomerang' throws out-and-back shots. 'heli' and 'line' currently use the
- * plain projectile loop (the helicopter fires from its pad, the rail fires a fast piercing slug).
+ * 'lob' arcs shells and 'boomerang' throws out-and-back shots; 'heli' flies a helicopter unit
+ * that shoots from where it is; 'line' fires instant piercing rail lines.
  */
 export const TOWER_BEHAVIORS: Record<string, TowerBehavior> = {
   projectile: shooter,
@@ -24,6 +26,6 @@ export const TOWER_BEHAVIORS: Record<string, TowerBehavior> = {
   trap: trapBehavior,
   income: incomeBehavior,
   support: supportBehavior,
-  heli: shooter,
-  line: shooter,
+  heli: heliBehavior,
+  line: lineBehavior,
 };
