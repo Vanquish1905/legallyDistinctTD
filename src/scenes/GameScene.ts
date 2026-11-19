@@ -10,7 +10,6 @@ import type { ParticleQuality } from '../render/quality';
 import { GameController, MAX_FRAME_DT } from './game/GameController';
 import { GameInput } from './game/GameInput';
 import { GameHotkeys } from './game/GameHotkeys';
-import { DevOverlay } from './game/DevOverlay';
 import { debugEnabled, installDebugApi, type DebugApi } from './game/debugApi';
 import { stressWaves } from './game/stress';
 import { AudioDirector } from './game/AudioDirector';
@@ -82,7 +81,6 @@ export class GameScene extends Phaser.Scene {
     this.gameInput = new GameInput(this, c, this.world);
     this.hotkeys = new GameHotkeys(this.input.keyboard, c);
     this.directors = [new AudioDirector(c, AudioService.install(this.game)), ...(stress > 0 ? [] : [new SaveDirector(c, getSaveService())])];
-    new DevOverlay(this, c);
     this.debug = debug
       ? installDebugApi(c, () => ({
         fps: Math.round(this.game.loop.actualFps),
@@ -91,6 +89,7 @@ export class GameScene extends Phaser.Scene {
       }), (mapId) => this.scene.restart({ ...this.params, ...(mapId ? { mapId } : {}) }))
       : null;
     this.cameras.main.fadeIn(350, 13, 17, 23);
+    this.scene.launch('HudScene');
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardown());
   }
 
@@ -120,6 +119,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private teardown(): void {
+    this.scene.stop('HudScene');
     this.gameInput.destroy();
     this.hotkeys.destroy();
     for (const d of this.directors) d.destroy();

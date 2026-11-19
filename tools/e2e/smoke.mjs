@@ -38,6 +38,75 @@ async function waitForServer(url, tries = 50) {
   throw new Error('preview server did not start');
 }
 
+/**
+ * Drive the HUD with real mouse input: scroll the tower list, pick the Railgun card, place it,
+ * select it, change its target mode, upgrade it, toggle speed and start a wave from the top bar.
+ */
+async function driveHud(page) {
+  const box = await page.locator('canvas').boundingBox();
+  const at = (p) => [box.x + (p.x / 1920) * box.width, box.y + (p.y / 1080) * box.height];
+  const click = async (p) => {
+    await page.mouse.move(...at(p));
+    await page.mouse.click(...at(p));
+  };
+  const hud = (fn, arg) => page.waitForFunction(fn, arg, { timeout: 15000 }).then((h) => h.jsonValue())
+    .catch((e) => { throw new Error(`HUD wait failed for ${fn}: ${e.message}`); });
+  await page.waitForFunction(() => window.__LDTD__?.ready === true && window.__LDTD__.hud, null, { timeout: 30000 });
+  await page.evaluate(() => window.__LDTD__.controller.sim.grantMoney(6000));
+
+  // Scroll the list with the mouse wheel until the Railgun card is fully in view.
+  await page.mouse.move(...at({ x: 1730, y: 600 }));
+  for (let i = 0; i < 12; i++) {
+    const card = await page.evaluate(() => window.__LDTD__.hud.cardCenter('railgun'));
+    if (card) break;
+    await page.mouse.wheel(0, 240);
+    await page.waitForTimeout(250);
+  }
+  await hud(() => !window.__LDTD__.hud.listMoving());
+  const offset = await page.evaluate(() => window.__LDTD__.hud.listOffset());
+  if (!(offset > 0)) throw new Error(`tower list did not scroll (offset ${offset})`);
+  const card = await hud(() => window.__LDTD__.hud.cardCenter('railgun'));
+  await click(card);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'test-results/hud.png' });
+  const pending = await page.evaluate(() => window.__LDTD__.controller.pendingTowerId);
+  if (pending !== 'railgun') throw new Error(`clicking the Railgun card did not start placement (${pending})`);
+  // Any free spot on whatever map is loaded.
+  const spot = await page.evaluate(() => {
+    const sim = window.__LDTD__.controller.sim;
+    for (let y = 200; y < 1000; y += 40) for (let x = 200; x < 1400; x += 40) if (sim.canPlace('railgun', x, y).ok) return { x, y };
+    return null;
+  });
+  if (!spot) throw new Error('no free spot for the railgun');
+  await click(spot);
+  const rail = await page.evaluate(() => window.__LDTD__.sim.towers.find((t) => t.def.id === 'railgun')?.uid ?? null);
+  if (rail === null) throw new Error('railgun was not placed by clicking the field');
+
+  // Select it on the field, then use the tower panel.
+  await click(spot);
+  const selected = await page.evaluate(() => window.__LDTD__.controller.selectedUid);
+  if (selected !== rail) throw new Error(`clicking the railgun did not select it (${selected})`);
+  await click(await hud(() => window.__LDTD__.hud.control('target-strong')));
+  await click(await hud(() => window.__LDTD__.hud.control('upgrade0')));
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/hud-panel.png' });
+  const t = await page.evaluate((uid) => {
+    const tw = window.__LDTD__.sim.towers.find((x) => x.uid === uid);
+    return { mode: tw.targetMode, tiers: [...tw.tiers] };
+  }, rail);
+  if (t.mode !== 'strong') throw new Error(`target mode not changed via panel (${t.mode})`);
+  if (t.tiers.join() !== '1,0') throw new Error(`upgrade via panel failed (${t.tiers})`);
+
+  // Top bar: speed toggle and next wave.
+  await click(await hud(() => window.__LDTD__.hud.control('speed')));
+  const speed = await page.evaluate(() => window.__LDTD__.controller.speed);
+  if (speed !== 2) throw new Error(`speed button did not toggle (${speed})`);
+  await click(await hud(() => window.__LDTD__.hud.control('next')));
+  const wave = await page.evaluate(() => window.__LDTD__.sim.wave);
+  if (wave !== 1) throw new Error(`next-wave button did not start wave 1 (${wave})`);
+  console.log(`hud: list scrolled ${Math.round(offset)} px, railgun placed, upgraded, targeting strong, speed ${speed}x, wave ${wave}`);
+}
+
 const { chromium } = loadPlaywright();
 const port = await freePort();
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
@@ -120,6 +189,8 @@ try {
   const restarted = await page.evaluate(() => window.__LDTD__.sim.towers.length);
   if (restarted !== 0) throw new Error(`restart kept ${restarted} towers`);
 
+  await driveHud(page);
+
   // Production players get no debug hooks.
   const plain = await browser.newPage({ viewport: { width: 800, height: 450 } });
   plain.on('pageerror', (e) => errors.push(`plain pageerror: ${e.message}`));
@@ -134,10 +205,17 @@ try {
   await phone.goto(`${url}?e2e&difficulty=easy`);
   await phone.waitForFunction(() => window.__LDTD__?.ready === true, null, { timeout: 30000 });
   const pbox = await phone.locator('canvas').boundingBox();
+  const ptap = (p) => phone.touchscreen.tap(pbox.x + (p.x / 1920) * pbox.width, pbox.y + (p.y / 1080) * pbox.height);
   await phone.evaluate(() => window.__LDTD__.controller.beginPlacement('frost'));
-  await phone.touchscreen.tap(pbox.x + (600 / 1920) * pbox.width, pbox.y + (360 / 1080) * pbox.height);
+  await ptap({ x: 600, y: 360 });
+  // Then with the HUD: tap the Blaster card, tap the field.
+  await phone.waitForFunction(() => window.__LDTD__.hud?.cardCenter('blaster') != null, null, { timeout: 10000 });
+  await ptap(await phone.evaluate(() => window.__LDTD__.hud.cardCenter('blaster')));
+  const phonePending = await phone.evaluate(() => window.__LDTD__.controller.pendingTowerId);
+  if (phonePending !== 'blaster') throw new Error(`tapping the Blaster card did not start placement (${phonePending})`);
+  await ptap({ x: 420, y: 330 });
   const phoneTowers = await phone.evaluate(() => window.__LDTD__.sim.towers.map((t) => t.def.id));
-  if (phoneTowers.join() !== 'frost') throw new Error(`touch placement failed: ${JSON.stringify(phoneTowers)}`);
+  if (phoneTowers.join() !== 'frost,blaster') throw new Error(`touch placement failed: ${JSON.stringify(phoneTowers)}`);
   await phone.close();
 } catch (e) {
   errors.push(String(e));

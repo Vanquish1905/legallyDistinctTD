@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, GAME_H, GAME_W } from './config';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
+import { HudScene } from './scenes/HudScene';
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -10,5 +11,5 @@ new Phaser.Game({
   height: GAME_H,
   backgroundColor: COLORS.background,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, GameScene],
+  scene: [BootScene, GameScene, HudScene],
 });

@@ -27,6 +27,20 @@ export interface DebugApi {
   stats(): DebugStats;
   /** Restart the game scene (same map unless `mapId` is given); exercises teardown. */
   restart(mapId?: string): void;
+  /** Set by the HUD scene while it runs: where its controls are, for driving them with real input. */
+  hud?: HudDebug;
+}
+
+/** HUD geometry hooks (game px, 1920×1080) for the e2e test. */
+export interface HudDebug {
+  /** Current scroll offset of the tower list. */
+  listOffset(): number;
+  /** True while the tower list is still animating (inertia, wheel easing, bounce). */
+  listMoving(): boolean;
+  /** Centre of the card of `towerId` when fully visible in the list, else null. */
+  cardCenter(towerId: string): { x: number; y: number } | null;
+  /** Centre of a named control ('next', 'speed', 'pause', 'auto', 'upgrade0', 'upgrade1', 'sell', 'target-<mode>'), or null when hidden. */
+  control(name: string): { x: number; y: number } | null;
 }
 
 declare global {
