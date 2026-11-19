@@ -5,6 +5,7 @@ import { getMap } from '../data/maps';
 import { DIFFICULTY_ORDER } from '../data/difficulty';
 import type { GameSceneData } from './GameScene';
 import { debugEnabled } from './game/debugApi';
+import { AudioService } from '../services/AudioService';
 
 const BAR_W = 720;
 const BAR_H = 18;
@@ -31,6 +32,8 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     loadArt(this.load, this.textures, artEntries(['logo']));
+    // Sound effects decode in the background and the first song is fetched on demand: boot never waits for audio.
+    AudioService.install(this.game).loadBootAudio('game');
   }
 
   create(): void {

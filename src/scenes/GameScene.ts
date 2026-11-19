@@ -13,6 +13,10 @@ import { GameHotkeys } from './game/GameHotkeys';
 import { DevOverlay } from './game/DevOverlay';
 import { debugEnabled, installDebugApi, type DebugApi } from './game/debugApi';
 import { stressWaves } from './game/stress';
+import { AudioDirector } from './game/AudioDirector';
+import { SaveDirector } from './game/SaveDirector';
+import { AudioService } from '../services/AudioService';
+import { getSaveService } from '../services/SaveService';
 
 /** What a game is started with. */
 export interface GameSceneData {
@@ -37,6 +41,8 @@ export class GameScene extends Phaser.Scene {
   private gameInput!: GameInput;
   private hotkeys!: GameHotkeys;
   private debug: DebugApi | null = null;
+  /** Audio cues and autosave (no saves in stress mode). */
+  private directors: { destroy(): void }[] = [];
   private params: GameSceneData = DEFAULT_DATA;
   /** Smoothed CPU time of `update` (sim + view sync), excluding WebGL drawing. */
   private updateMs = 0;
@@ -75,6 +81,7 @@ export class GameScene extends Phaser.Scene {
     c.events.on('selectionChanged', ({ uid }) => this.world.setSelection(uid));
     this.gameInput = new GameInput(this, c, this.world);
     this.hotkeys = new GameHotkeys(this.input.keyboard, c);
+    this.directors = [new AudioDirector(c, AudioService.install(this.game)), ...(stress > 0 ? [] : [new SaveDirector(c, getSaveService())])];
     new DevOverlay(this, c);
     this.debug = debug
       ? installDebugApi(c, () => ({
@@ -115,6 +122,7 @@ export class GameScene extends Phaser.Scene {
   private teardown(): void {
     this.gameInput.destroy();
     this.hotkeys.destroy();
+    for (const d of this.directors) d.destroy();
     this.controller.destroy();
     if (this.debug && window.__LDTD__ === this.debug) delete window.__LDTD__;
     this.debug = null;
